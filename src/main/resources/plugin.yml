@@ -1,0 +1,34 @@
+name: VAntiCheat
+version: 1.3.0
+main: com.hexa.vanticheat.core.VAntiCheat
+api-version: '1.20'
+folia-supported: true
+author: Hexa
+description: Client/mod security, anti-xray/esp, behavioral anti-cheat for Hexa SMP (Folia-ready).
+commands:
+  vac:
+    description: VAntiCheat admin command
+    usage: /vac <reload|inspect|evidence|alerts|trust|untrust|punish|test|debug>
+    permission: vanti.command
+permissions:
+  vanti.admin:
+    description: Full VAntiCheat admin
+    default: op
+  vanti.command:
+    description: Use /vac
+    default: op
+  vanti.inspect:
+    description: Inspect players and evidence
+    default: op
+  vanti.punish:
+    description: Punish-related commands
+    default: op
+  vanti.trust:
+    description: Trust/untrust players
+    default: op
+  vanti.cheat.alerts:
+    description: Receive anti-cheat alerts
+    default: op
+  vanti.bypass:
+    description: Exempt from checks and enforcement
+    default: false

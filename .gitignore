@@ -1,0 +1,14 @@
+# Build output
+target/
+# IDE
+.idea/
+.vscode/
+*.iml
+*.class
+# Evidence / runtime data (never publish)
+evidence/
+*.jsonl
+*.log
+# OS
+.DS_Store
+Thumbs.db

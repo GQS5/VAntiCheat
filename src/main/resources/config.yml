@@ -1,0 +1,231 @@
+# ============================================================
+# VAntiCheat — server admin configuration
+# Works on: Folia 1.21.11 (native) and Paper.
+# You do NOT need to understand the detection internals.
+# Quick start: pick security.profile below, restart, run /vac status.
+# Copy/paste presets: standard (calm), hardcore (SMP default),
+# paranoid (maximum investigation, still proof-gated punishment).
+# ============================================================
+
+general:
+  # Master switch. When false, VAntiCheat monitors nothing.
+  enabled: true
+  # Verbose console logging for troubleshooting. Keep false in production.
+  debug: false
+  # Server operators bypass enforcement (alerts still fire).
+  exempt-ops: true
+
+config-version: 4
+
+# --- Presets: lenient | standard | hardcore | paranoid ---
+# lenient:   maximum false-positive protection (quiet small servers).
+# standard:  balanced production mode (most servers start here).
+# hardcore:  aggressive when evidence is strong (SMP default).
+# paranoid:  maximum evidence collection; severe punishment still
+#            requires strong proof. Editing sections below = custom.
+security:
+  profile: hardcore
+
+# --- Client security: what players connect with ---
+client_security:
+  # Identify cheat clients from brand + plugin channels (server-visible only).
+  enabled: true
+  # Block forbidden clients before they fully join.
+  reject_before_world_join: true
+  # Ticks after join before the first client verdict (lets channels arrive).
+  post-join-eval-ticks: 100
+
+# --- Plugin-channel mod list (Xaero, JourneyMap, Freecam, ...) ---
+modlist:
+  enabled: true
+
+# --- Anti-spoof: vanilla claim vs cheat channel contradictions ---
+antispoof:
+  enabled: true
+
+# --- Anti-Xray statistics (needs Paper anti-xray in paper-global.yml!) ---
+# VAntiCheat cannot hide ores itself; it scores mining BEHAVIOR.
+antixray:
+  enabled: true
+  # Block breaks before a player is scored (small samples are luck).
+  min-sample: 40
+  valuable-blocks: DIAMOND_ORE,DEEPSLATE_DIAMOND_ORE,EMERALD_ORE,DEEPSLATE_EMERALD_ORE,ANCIENT_DEBRIS,GOLD_ORE,DEEPSLATE_GOLD_ORE,IRON_ORE,DEEPSLATE_IRON_ORE,REDSTONE_ORE,DEEPSLATE_REDSTONE_ORE,LAPIS_ORE,DEEPSLATE_LAPIS_ORE,NETHER_GOLD_ORE,NETHER_QUARTZ_ORE
+  thresholds:
+    hidden-ratio: 0.75
+    rare-per-hour: 12.0
+    hidden-streak: 4
+    min-avg-spacing: 25.0
+
+# --- Anti-ESP: hidden-player tracking behavior (never hides entities) ---
+anti_esp:
+  enabled: true
+  # Rolling correlation window in seconds. One glance is never evidence.
+  history_seconds: 8
+  minimap:
+    enabled: true
+    forbidden:
+      xaeros_minimap: true
+      xaeros_worldmap: true
+      journeymap: true
+      voxelmap: true
+      freecam: true
+      baritone: true
+
+# --- Behavior checks: combat + movement + interaction ---
+# All checks need repeated anomalies; lag suppresses weak evidence.
+behavior:
+  enabled: true
+  # Violation decay per second (forgiveness for old mistakes).
+  vl-decay-per-second: 0.05
+  checks:
+    reach: { enabled: true, max-reach: 3.4, max-vl: 8.0 }
+    killaura: { enabled: true, max-vl: 8.0 }
+    fly: { enabled: true, max-vl: 8.0 }
+    speed: { enabled: true, max-vl: 8.0 }
+    nofall: { enabled: true, max-vl: 8.0 }
+    step: { enabled: true, max-vl: 8.0 }
+    fastplace: { enabled: true, max-vl: 8.0 }
+    fastbreak: { enabled: true, max-vl: 8.0 }
+
+# --- Confidence: 0-29 normal, 30-59 suspicious, 60-79 high,
+# --- 80-94 very high, 95-100 confirmed. Decay is per idle minute.
+confidence:
+  weights:
+    known_forbidden_client_fingerprint: 70
+    known_plugin_channel: 20
+    behavior_confirmation: 20
+    spoof_inconsistency: 20
+    forbidden_mod_channel: 65
+    suspicious_brand: 10
+    xray_statistical: 15
+    esp_behavior: 15
+    check_violation: 8
+  decay:
+    weak: 20
+    medium: 10
+    strong: 3
+    confirmed: 0
+
+# --- Punishment: safe by default. Bans need strong multi-signal proof. ---
+punishment:
+  enabled: true
+  # Severe actions require independent evidence families (recommended: true).
+  require-independent-signals: true
+  minimum-independent-signals: 2
+
+# Per-category action: none|alert|warn|kick|tempban|ban
+punishments:
+  forbidden_client: { action: kick }
+  forbidden_mod: { action: kick }
+  confirmed_xray: { action: tempban, duration: 1d }
+  esp: { action: warn }
+  behavior: { action: warn }
+
+# --- Trust: per-category bypass for staff-tested players (never global) ---
+trust:
+  bypass:
+    client-security: false
+    movement: false
+    combat: false
+    xray: false
+    esp: false
+    interaction: false
+
+# --- Evidence: staff-visible detection history ---
+evidence:
+  enabled: true
+
+# --- Storage: daily JSONL files, auto-rotated and pruned ---
+storage:
+  retention-days: 14
+  max-file-size-mb: 32
+
+# --- Performance: sane defaults; raise only if /vac diagnostics says so ---
+performance:
+  max-evidence-per-player: 200
+  max-global-evidence: 10000
+  max-analysis-queue: 5000
+  max-history-seconds: 10
+  profiling: false
+  profiling-sample-rate: 20
+
+# --- Staff alerts (permission vanti.cheat.alerts) ---
+alerts:
+  enabled: true
+  # Below this confidence, routine detections stay silent.
+  min-confidence: 30
+
+# --- QA only: dry-run logs punishments instead of kicking/banning ---
+qa:
+  punishment:
+    dry-run: false
+
+# --- cheat-client policy (action: none|alert|warn|kick|tempban|ban) ---
+# Ghost clients (vape/raven) expose nothing server-side: behavior-only.
+clients:
+  meteor: { enabled: true, action: kick }
+  wurst: { enabled: true, action: kick }
+  liquidbounce: { enabled: true, action: kick }
+  impact: { enabled: true, action: kick }
+  aristois: { enabled: true, action: kick }
+  bleachhack: { enabled: true, action: kick }
+  inertia: { enabled: true, action: kick }
+  future: { enabled: true, action: kick }
+  rise: { enabled: true, action: kick }
+  sigma: { enabled: true, action: kick }
+  doomsday: { enabled: true, action: kick }
+  augustus: { enabled: true, action: kick }
+  vape: { enabled: false, action: alert }
+  raven: { enabled: false, action: alert }
+
+# --- forbidden mods (exact identifiers; bare "xaero" never matches) ---
+# Optimization mods (Sodium/Lithium/Iris/...) are always allowed.
+mods:
+  xaeros_minimap:
+    enabled: true
+    action: kick
+    display: "Xaero's Minimap"
+    identifiers: [xaerominimap, xaero_minimap, xaero-minimap, xaeros_minimap, xaerominimap_fair]
+  xaeros_worldmap:
+    enabled: true
+    action: kick
+    display: "Xaero's World Map"
+    identifiers: [xaeroworldmap, xaero_worldmap, xaero-worldmap, xaeros_worldmap]
+  journeymap:
+    enabled: true
+    action: kick
+    display: "JourneyMap"
+    identifiers: [journeymap]
+  voxelmap:
+    enabled: true
+    action: kick
+    display: "VoxelMap"
+    identifiers: [voxelmap]
+  freecam:
+    enabled: true
+    action: kick
+    display: "Freecam"
+    identifiers: [freecam]
+  baritone:
+    enabled: true
+    action: kick
+    display: "Baritone"
+    identifiers: [baritone]
+  litematica:
+    enabled: true
+    action: kick
+    display: "Litematica"
+    identifiers: [litematica]
+  tweakeroo:
+    enabled: true
+    action: kick
+    display: "Tweakeroo"
+    identifiers: [tweakeroo]
+  xray:
+    enabled: true
+    action: kick
+    display: "X-Ray mod"
+    identifiers: [xray, x-ray, advancedxray]
+
+tests:
+  xaero_minimap: { enabled: true, action: kick }

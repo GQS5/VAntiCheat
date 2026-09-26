@@ -29,4 +29,14 @@ class CheckHacksResponseEvaluatorTest {
         assertEquals(DetectionStatus.PROTECTED, CheckHacksResponseEvaluator.evaluate(
                 keybind, "key.mod.toggle", true, ProbeResponse.Outcome.RESPONSE));
     }
+
+    @Test
+    void translateProbeWithNoFallbackDoesNotTreatEveryResponseAsClean() {
+        ProbeDefinition xaero = new ProbeDefinition("xaeros-worldmap", "Xaero's World Map",
+                "gui.xaero_worldmap", ProbeMode.TRANSLATE, "", true,
+                ProbeVerificationStatus.UNVERIFIED);
+
+        assertEquals(DetectionStatus.DETECTED, CheckHacksResponseEvaluator.evaluate(
+                xaero, "Xaero's World Map", false, ProbeResponse.Outcome.RESPONSE));
+    }
 }

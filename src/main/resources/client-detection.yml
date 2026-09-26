@@ -38,10 +38,10 @@ client-detection:
       - trouser-streak-newchunks
       - trouser-streak-anhero
       - glazed
-      - litematica
-      - itemscroller
+       - itemscroller
        - baritone
        - xaeros-worldmap
+       - litematica
   probes:
     meteor-client:
       display-name: "Meteor Client"
@@ -191,8 +191,7 @@ client-detection:
       display-name: "Litematica"
       key: "litematica.hotkey.name.openmainmenuscreen"
       mode: TRANSLATE
-      # Litematica installation/use is not proof of cheating.
-      enabled: false
+      enabled: true
       verification: UNVERIFIED
     itemscroller:
       display-name: "Item Scroller"

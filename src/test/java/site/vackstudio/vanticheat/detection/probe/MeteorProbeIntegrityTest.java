@@ -96,7 +96,7 @@ class MeteorProbeIntegrityTest {
     }
 
     @Test
-    void xaeroMinimapRemainsDisabledAndWorldmapIsSelected() throws Exception {
+    void xaeroMinimapRemainsDisabledAndUtilityProbesAreSelected() throws Exception {
         ClientDetectionConfig config = bundled();
 
         assertTrue(config.probes().stream()
@@ -109,5 +109,10 @@ class MeteorProbeIntegrityTest {
                 .anyMatch(ProbeDefinition::enabled));
         assertTrue(config.automaticProbes().stream()
                 .anyMatch(probe -> probe.id().equals("xaeros-worldmap")));
+        assertTrue(config.probes().stream()
+                .filter(probe -> probe.id().equals("litematica"))
+                .anyMatch(ProbeDefinition::enabled));
+        assertTrue(config.automaticProbes().stream()
+                .anyMatch(probe -> probe.id().equals("litematica")));
     }
 }

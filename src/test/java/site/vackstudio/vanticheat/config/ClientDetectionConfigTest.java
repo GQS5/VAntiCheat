@@ -30,7 +30,7 @@ class ClientDetectionConfigTest {
         assertTrue(config.autoCheckOnJoin());
         assertEquals(20, config.autoCheckDelayTicks());
         assertEquals(32, config.maxConcurrentAutoChecks());
-        assertEquals(27, config.automaticProbes().size());
+        assertEquals(28, config.automaticProbes().size());
         assertTrue(config.probes().stream()
                 .filter(probe -> probe.id().equals("xaeros-minimap"))
                 .noneMatch(probe -> probe.enabled()));
@@ -39,7 +39,7 @@ class ClientDetectionConfigTest {
                     .anyMatch(probe -> probe.enabled()));
         assertTrue(config.probes().stream()
                 .filter(probe -> probe.id().equals("litematica"))
-                .noneMatch(probe -> probe.enabled()));
+                .anyMatch(probe -> probe.enabled()));
         assertEquals(ProbeMode.METEOR, config.probes().get(0).mode());
         assertEquals(ProbeVerificationStatus.UNVERIFIED, config.probes().get(0).verificationStatus());
     }

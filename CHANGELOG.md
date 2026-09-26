@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 - Translation probe evaluator fix
+
+- Fixed empty `TRANSLATE` fallbacks incorrectly classifying every non-empty
+  response as `CLEAN`.
+- Xaero World Map and Litematica translation responses are now evaluated
+  normally.
+
 ## 0.1.3 - Xaero World Map probe policy
 
 - Enabled `xaeros-worldmap` in the bundled automatic probe policy.

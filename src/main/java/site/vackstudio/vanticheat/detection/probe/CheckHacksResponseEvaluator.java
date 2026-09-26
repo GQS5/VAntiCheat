@@ -28,11 +28,15 @@ public final class CheckHacksResponseEvaluator {
         return switch (probe.mode()) {
             case METEOR -> {
                 if (value.equalsIgnoreCase(probe.key())) yield DetectionStatus.DETECTED;
-                if (startsWithIgnoreCase(value, probe.fallback())) yield DetectionStatus.CLEAN;
+                if (!probe.fallback().isBlank() && startsWithIgnoreCase(value, probe.fallback())) {
+                    yield DetectionStatus.CLEAN;
+                }
                 yield DetectionStatus.DETECTED;
             }
             case TRANSLATE -> {
-                if (startsWithIgnoreCase(value, probe.fallback())) yield DetectionStatus.CLEAN;
+                if (!probe.fallback().isBlank() && startsWithIgnoreCase(value, probe.fallback())) {
+                    yield DetectionStatus.CLEAN;
+                }
                 if (value.equalsIgnoreCase(probe.key())) yield DetectionStatus.PROTECTED;
                 yield DetectionStatus.DETECTED;
             }

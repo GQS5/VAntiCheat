@@ -17,6 +17,7 @@ public final class LunarClientService {
     public enum RegistrationOutcome {
         IGNORED_DISABLED,
         IGNORED_UNAVAILABLE,
+        IGNORED_UNSUPPORTED,
         REGISTERED,
         POLICY_APPLIED
     }
@@ -38,11 +39,11 @@ public final class LunarClientService {
         this.integration = integration;
         if (integration != null) integration.start();
         if (!config.enabled()) {
-            logger.info("[VAntiCheat] Lunar integration disabled: lunar.enabled=false");
+            logger.info("[VAntiCheat] Lunar integration: DISABLED");
         } else if (integration == null || !integration.isAvailable()) {
-            logger.info("[VAntiCheat] Lunar integration unavailable: Apollo not installed");
+            logger.info("[VAntiCheat] Lunar integration: UNAVAILABLE reason=APOLLO_NOT_PRESENT");
         } else {
-            logger.info("[VAntiCheat] Lunar integration enabled");
+            logger.info("[VAntiCheat] Lunar integration: READY");
         }
     }
 
@@ -64,6 +65,7 @@ public final class LunarClientService {
         LunarClientIntegration current = integration;
         if (!config.enabled()) return RegistrationOutcome.IGNORED_DISABLED;
         if (current == null || !current.isAvailable()) return RegistrationOutcome.IGNORED_UNAVAILABLE;
+        if (!current.hasSupport(playerId)) return RegistrationOutcome.IGNORED_UNSUPPORTED;
         states.put(playerId, LunarPlayerState.REGISTERED);
         logger.info("[VAntiCheat] Lunar player registered player=" + playerName);
         if (!config.minimapEnabled()) return RegistrationOutcome.REGISTERED;
@@ -78,9 +80,11 @@ public final class LunarClientService {
         if (applied) {
             states.put(playerId, LunarPlayerState.MINIMAP_DISABLED);
             logger.info("[VAntiCheat] Lunar policy applied player=" + playerName
-                    + " action=DISABLE_MINIMAP");
+                    + " action=DISABLE_MINIMAP success=true");
             return RegistrationOutcome.POLICY_APPLIED;
         }
+        logger.info("[VAntiCheat] Lunar policy applied player=" + playerName
+                + " action=DISABLE_MINIMAP success=false");
         return RegistrationOutcome.REGISTERED;
     }
 

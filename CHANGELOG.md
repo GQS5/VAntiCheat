@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.6 - Apollo runtime diagnostics
+
+- Added explicit Lunar startup states: `DISABLED`, `READY`, and
+  `UNAVAILABLE reason=APOLLO_NOT_PRESENT`.
+- Apollo registration now confirms `hasSupport(UUID)` before tracking a player.
+- Policy diagnostics now report whether the Minimap override request succeeded.
+- Documented the official Apollo Folia runtime requirement and live validation
+  limits.
+
 ## 0.1.5 - Simpler probe configuration
 
 - Automatic checks now use every probe with `enabled: true`.

@@ -38,9 +38,10 @@ class LunarClientServiceTest {
         FakeIntegration integration = new FakeIntegration(Set.of(lunarPlayer));
         LunarClientService service = service(new LunarPolicyConfig(true, true), integration);
 
-        assertEquals(LunarClientService.RegistrationOutcome.REGISTERED,
+        assertEquals(LunarClientService.RegistrationOutcome.IGNORED_UNSUPPORTED,
                 service.handleRegistration(vanillaPlayer, "vanilla"));
         assertTrue(integration.disabled.isEmpty());
+        assertEquals(0, service.trackedPlayers());
         assertFalse(service.isLunar(vanillaPlayer));
     }
 

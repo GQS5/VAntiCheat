@@ -22,7 +22,7 @@ class PaperSignProbeTransportTest {
         Location candidate = PaperSignProbeTransport.candidates(playerFeet).get(0);
 
         assertEquals(playerFeet.getBlockX(), candidate.getBlockX());
-        assertEquals(playerFeet.getBlockY() + 2, candidate.getBlockY());
+        assertEquals(playerFeet.getBlockY() + 3, candidate.getBlockY());
         assertEquals(playerFeet.getBlockZ(), candidate.getBlockZ());
     }
 

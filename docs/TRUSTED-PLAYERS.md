@@ -5,6 +5,8 @@
 Administrators with `vanticheat.admin` may use:
 
 ```text
+/vac help
+/vac reload
 /vac trust PlayerName
 /vac trust add PlayerName
 /vac trust remove PlayerName
@@ -12,6 +14,10 @@ Administrators with `vanticheat.admin` may use:
 ```
 
 Console is always authorized. In-game players require the dedicated permission; ordinary players cannot modify the list. The command provides online-player completion and trusted-name completion for removal.
+
+`/vac reload` is also restricted to `vanticheat.admin` for in-game users. It
+reinitializes VAntiCheat and applies configuration changes without invoking
+Bukkit's global `/reload` command.
 
 ## Persistence and identity
 

@@ -190,7 +190,8 @@ client-detection:
       display-name: "Litematica"
       key: "litematica.hotkey.name.openmainmenuscreen"
       mode: TRANSLATE
-      enabled: true
+      # Litematica installation/use is not proof of cheating.
+      enabled: false
       verification: UNVERIFIED
     itemscroller:
       display-name: "Item Scroller"
@@ -203,6 +204,13 @@ client-detection:
       key: "gui.xaero_minimap"
       mode: TRANSLATE
       # Legitimate minimap clients must not become confirmed cheat enforcement.
+      enabled: false
+      verification: UNVERIFIED
+    xaeros-worldmap:
+      display-name: "Xaero's World Map"
+      key: "gui.xaero_worldmap"
+      mode: TRANSLATE
+      # Legitimate world-map clients must not become confirmed cheat enforcement.
       enabled: false
       verification: UNVERIFIED
     baritone:

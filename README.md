@@ -20,8 +20,9 @@ complete live cheat-client coverage.
 Client detection supports configured translation/keybind probes, automatic join
 checks, confirmation passes, bounded sessions, and enforcement for confirmed
 client-detection results. Probe definitions remain operationally unverified
-unless documented as live-validated. The previously observed Xaero's Minimap
-false-positive probe is disabled and is not included in automatic join checks.
+unless documented as live-validated. Xaero's Minimap, Xaero's World Map, and
+Litematica are allowed utility mods and their probes are disabled and excluded
+from automatic join checks.
 
 Behavior modules are server-observable and observe-only:
 
@@ -45,6 +46,8 @@ disable detection or evidence collection.
 Administrators with `vanticheat.admin` can use:
 
 ```text
+/vac help
+/vac reload
 /vac trust <player>
 /vac trust add <player>
 /vac trust remove <player>
@@ -55,6 +58,10 @@ Trust is UUID-based and persists in
 `plugins/VAntiCheat/data/trusted-players.yml`. Removing trust restores normal
 enforcement for subsequent confirmed results. See
 [`docs/TRUSTED-PLAYERS.md`](docs/TRUSTED-PLAYERS.md).
+
+`/vac reload` safely reinitializes VAntiCheat and applies updated plugin,
+client-detection, behavior, enforcement, and trusted-player configuration. It
+does not invoke Bukkit's global `/reload` command.
 
 ## Installation
 
@@ -72,8 +79,8 @@ then start Paper or Folia. The plugin creates or loads:
 - `behavior-detection.yml` for observe-only behavior modules
 
 Do not enable an unverified client probe solely because it exists in the
-configuration. In particular, keep `xaeros-minimap` disabled unless a future
-validated policy explicitly changes that decision.
+configuration. Keep `xaeros-minimap`, `xaeros-worldmap`, and `litematica`
+disabled unless a future validated policy explicitly changes that decision.
 
 ## Validation
 

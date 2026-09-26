@@ -1,6 +1,7 @@
 package site.vackstudio.vanticheat;
 
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.event.HandlerList;
 import site.vackstudio.vanticheat.config.ConfigurationLoader;
 import site.vackstudio.vanticheat.config.ClientDetectionConfig;
 import site.vackstudio.vanticheat.config.FoundationConfig;
@@ -64,7 +65,7 @@ public final class VAntiCheatPlugin extends JavaPlugin {
         EnforcementService enforcement = new EnforcementService(
                 new DefaultEnforcementPolicy(enforcementConfig.enabled()),
                 new PaperEnforcementExecutor(), enforcementConfig.confirmedDetectionMessage(), getLogger(), trustedPlayers);
-        TrustedPlayerCommand trustedCommand = new TrustedPlayerCommand(trustedPlayers);
+        TrustedPlayerCommand trustedCommand = new TrustedPlayerCommand(trustedPlayers, this::reloadPlugin);
         getCommand("vac").setExecutor(trustedCommand);
         getCommand("vac").setTabCompleter(trustedCommand);
         ClientDetectionConfig clientDetection = ClientDetectionConfig.load(getDataFolder().toPath(), getLogger());
@@ -152,6 +153,13 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             trustedPlayers.save();
             trustedPlayers = null;
         }
+    }
+
+    public void reloadPlugin() {
+        HandlerList.unregisterAll(this);
+        onDisable();
+        reloadConfig();
+        onEnable();
     }
 
     public VAntiCheatCore core() {

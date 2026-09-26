@@ -23,6 +23,7 @@ coverage.
 - Paper and Folia 1.21.11 support on Java 21.
 - Automatic client checks when players join.
 - Manual client checks with `/vacprobe <player>`.
+- `/vac help` command help and `/vac reload` runtime configuration reload.
 - Two-pass confirmation for client probe results.
 - Per-player detection sessions with bounded timeouts and concurrency.
 - Centralized enforcement for confirmed client-detection results.
@@ -39,7 +40,7 @@ client translation keys and keybind-related signals. A probe can indicate that a
 client exposes a recognizable signal; it does not prove that a feature is
 active, that the player used it, or that the client is honest.
 
-The configured probe inventory contains 28 entries:
+The configured probe inventory contains 29 entries:
 
 - Meteor Client
 - LiquidBounce
@@ -68,13 +69,13 @@ The configured probe inventory contains 28 entries:
 - Litematica
 - Item Scroller
 - Xaero's Minimap
+- Xaero's World Map
 - Baritone
 
-All configured probes are currently marked `UNVERIFIED`. The 27 enabled probes
-other than Xaero's Minimap are eligible for the automatic join check. Xaero's
-Minimap is deliberately disabled and excluded from automatic checks because a
-legitimate Xaero client produced a false-positive enforcement path during live
-validation.
+All configured probes are currently marked `UNVERIFIED`. The 26 enabled probes
+are eligible for the automatic join check. Xaero's Minimap, Xaero's World Map,
+and Litematica are deliberately disabled and excluded from automatic checks
+because legitimate utility-mod presence must not become cheat enforcement.
 
 ### Automatic Check Flow
 
@@ -177,6 +178,10 @@ uses atomic replacement where supported. Trusted players still receive checks,
 produce evidence, and can be marked detected or confirmed; enforcement resolves
 to `NONE` for their UUID. Removing trust takes effect immediately for later
 enforcement decisions.
+
+`/vac help` lists the available VAntiCheat commands. `/vac reload` safely stops
+the current services, unregisters VAntiCheat listeners, reloads configuration,
+and starts fresh services. It does not invoke Bukkit's global `/reload`.
 
 ## Platform Support
 

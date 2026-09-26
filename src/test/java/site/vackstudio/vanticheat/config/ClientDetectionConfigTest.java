@@ -19,13 +19,19 @@ class ClientDetectionConfigTest {
             assertTrue(config.enabled());
             assertEquals(40, config.timeoutTicks());
             assertEquals(1, config.betweenProbeTicks());
-            assertEquals(28, config.probes().size());
+            assertEquals(29, config.probes().size());
             assertTrue(config.autoCheckOnJoin());
             assertEquals(20, config.autoCheckDelayTicks());
             assertEquals(32, config.maxConcurrentAutoChecks());
-            assertEquals(27, config.automaticProbes().size());
+            assertEquals(26, config.automaticProbes().size());
             assertTrue(config.probes().stream()
                     .filter(probe -> probe.id().equals("xaeros-minimap"))
+                    .noneMatch(probe -> probe.enabled()));
+            assertTrue(config.probes().stream()
+                    .filter(probe -> probe.id().equals("xaeros-worldmap"))
+                    .noneMatch(probe -> probe.enabled()));
+            assertTrue(config.probes().stream()
+                    .filter(probe -> probe.id().equals("litematica"))
                     .noneMatch(probe -> probe.enabled()));
             assertEquals(ProbeMode.METEOR, config.probes().get(0).mode());
             assertEquals(ProbeVerificationStatus.UNVERIFIED, config.probes().get(0).verificationStatus());

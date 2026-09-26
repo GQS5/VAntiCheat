@@ -13,15 +13,18 @@ import site.vackstudio.vanticheat.trusted.TrustedPlayerService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter {
     private static final String PREFIX = "[VAntiCheat] ";
     private final TrustedPlayerService trusted;
+    private final Runnable reload;
 
-    public TrustedPlayerCommand(TrustedPlayerService trusted) {
+    public TrustedPlayerCommand(TrustedPlayerService trusted, Runnable reload) {
         this.trusted = trusted;
+        this.reload = Objects.requireNonNull(reload, "reload");
     }
 
     @Override
@@ -30,8 +33,17 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
             sender.sendMessage(PREFIX + "You do not have permission to manage trusted players.");
             return true;
         }
+        if (args.length == 1 && args[0].equalsIgnoreCase("help")) {
+            help(sender);
+            return true;
+        }
+        if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
+            reload.run();
+            sender.sendMessage(PREFIX + "Configuration reloaded.");
+            return true;
+        }
         if (args.length < 1 || !args[0].equalsIgnoreCase("trust")) {
-            sender.sendMessage(PREFIX + "Usage: /vac trust [add|remove|list] [player]");
+            sender.sendMessage(PREFIX + "Usage: /vac help");
             return true;
         }
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
@@ -39,7 +51,7 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
             return true;
         }
         if (args.length == 2 && (args[1].equalsIgnoreCase("add") || args[1].equalsIgnoreCase("remove"))) {
-            sender.sendMessage(PREFIX + "Usage: /vac trust [add|remove|list] [player]");
+            sender.sendMessage(PREFIX + "Usage: /vac help");
             return true;
         }
         if (args.length == 2) {
@@ -54,13 +66,23 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
             remove(sender, args[2]);
             return true;
         }
-        sender.sendMessage(PREFIX + "Usage: /vac trust [add|remove|list] [player]");
+        sender.sendMessage(PREFIX + "Usage: /vac help");
         return true;
+    }
+
+    private void help(CommandSender sender) {
+        sender.sendMessage(PREFIX + "Commands:");
+        sender.sendMessage(PREFIX + "/vac reload - reload VAntiCheat configuration");
+        sender.sendMessage(PREFIX + "/vac trust <player> - trust a player");
+        sender.sendMessage(PREFIX + "/vac trust add <player> - trust a player");
+        sender.sendMessage(PREFIX + "/vac trust remove <player> - remove trust");
+        sender.sendMessage(PREFIX + "/vac trust list - list trusted players");
+        sender.sendMessage(PREFIX + "/vacprobe <player> - run a client probe");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return matching(List.of("trust"), args[0]);
+        if (args.length == 1) return matching(List.of("help", "reload", "trust"), args[0]);
         if (args.length == 2 && args[0].equalsIgnoreCase("trust")) {
             List<String> values = new ArrayList<>(List.of("add", "remove", "list"));
             Bukkit.getOnlinePlayers().forEach(player -> values.add(player.getName()));

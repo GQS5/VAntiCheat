@@ -98,7 +98,7 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return matching(List.of("help", "reload", "trust"), args[0]);
+        if (args.length == 1) return matching(List.of("check", "help", "reload", "trust"), args[0]);
         if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
             return matching(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
         }

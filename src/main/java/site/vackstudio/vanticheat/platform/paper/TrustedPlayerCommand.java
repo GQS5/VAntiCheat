@@ -33,6 +33,14 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
+            if (sender instanceof Player player && !player.hasPermission("vanticheat.probe")) {
+                sender.sendMessage(PREFIX + "You do not have permission to run client probes.");
+                return true;
+            }
+            probe.accept(sender, args[1]);
+            return true;
+        }
         if (sender instanceof Player player && !player.hasPermission("vanticheat.admin")) {
             sender.sendMessage(PREFIX + "You do not have permission to manage trusted players.");
             return true;
@@ -44,10 +52,6 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
             reload.run();
             sender.sendMessage(PREFIX + "Configuration reloaded.");
-            return true;
-        }
-        if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
-            probe.accept(sender, args[1]);
             return true;
         }
         if (args.length < 1 || !args[0].equalsIgnoreCase("trust")) {

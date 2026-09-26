@@ -13,6 +13,7 @@ import site.vackstudio.vanticheat.enforcement.EnforcementOutcome;
 import site.vackstudio.vanticheat.enforcement.EnforcementService;
 import site.vackstudio.vanticheat.enforcement.EnforcementTarget;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -57,10 +58,19 @@ public final class ClientProbeCommand implements CommandExecutor {
 
     private void report(CommandSender sender, Player target, EnforcementOutcome outcome) {
         DetectionResult result = outcome.result();
+        String mods = detectedMods(result);
         logger.info("Client probe result player=" + target.getName() + " status=" + result.status()
-                + " action=" + outcome.decision().action() + " evidence=" + result.evidence().size());
+                + " action=" + outcome.decision().action() + " evidence=" + result.evidence().size()
+                + " mods=" + mods);
         sender.sendMessage(messages.render("probe.result", java.util.Map.of(
                 "player", target.getName(), "status", result.status(),
-                "evidence", result.evidence().size())));
+                "evidence", result.evidence().size(), "mods", mods)));
+    }
+
+    private String detectedMods(DetectionResult result) {
+        List<String> mods = CheckHacksClientDetectionModule.detectedProbeIds(result).stream()
+                .map(module::displayName)
+                .toList();
+        return mods.isEmpty() ? "none" : String.join(", ", mods);
     }
 }

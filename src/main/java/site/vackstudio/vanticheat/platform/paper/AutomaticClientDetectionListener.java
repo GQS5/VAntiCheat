@@ -67,9 +67,22 @@ public final class AutomaticClientDetectionListener implements Listener {
         EnforcementOutcome outcome = enforcement.enforce(
                 new EnforcementTarget(target.id(), target.name(), player.isOnline(), player), result);
         coordinator.complete(target.id());
+        String mods = detectedMods(result);
+        logger.info("Automatic client check result player=" + target.name() + " status=" + result.status()
+                + " action=" + outcome.decision().action() + " mods=" + mods);
         if (outcome.decision().action().name().equals("KICK")) {
-            logger.info("Enforcement: KICK " + target.name());
+            logger.info("Enforcement: KICK " + target.name() + " mods=" + mods);
         }
+    }
+
+    private String detectedMods(DetectionResult result) {
+        java.util.List<String> mods = CheckHacksClientDetectionModule.detectedProbeIds(result).stream()
+                .map(id -> configuration.probes().stream()
+                        .filter(probe -> probe.id().equals(id))
+                        .map(site.vackstudio.vanticheat.detection.probe.ProbeDefinition::displayName)
+                        .findFirst().orElse(id))
+                .toList();
+        return mods.isEmpty() ? "none" : String.join(", ", mods);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

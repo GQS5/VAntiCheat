@@ -28,6 +28,7 @@ coverage.
 - Manual client checks with `/vacprobe <player>`.
 - `/vac check <player>` alias for the manual client probe.
 - `/vac help` command help and `/vac reload` runtime configuration reload.
+- Manual and automatic probe results now include detected mod names (`mods=...`, `none` when clean).
 - Two-pass confirmation for client probe results.
 - Per-player detection sessions with bounded timeouts and concurrency.
 - Centralized enforcement for confirmed client-detection results.

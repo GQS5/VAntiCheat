@@ -35,7 +35,7 @@ public final class Messages {
             Map.entry("probe.offline", "Player is not online"),
             Map.entry("probe.disabled", "%prefix%Client detection is disabled."),
             Map.entry("probe.start", "Starting client probe for %player%"),
-            Map.entry("probe.result", "Client probe %player%: %status% (evidence=%evidence%)"),
+            Map.entry("probe.result", "Client probe %player%: %status% (evidence=%evidence%, mods=%mods%)"),
             Map.entry("kick.confirmed", "Cheating detected."));
 
     private final Map<String, String> values;

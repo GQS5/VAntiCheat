@@ -61,6 +61,31 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
         return activeSessions.containsKey(targetId);
     }
 
+    public String displayName(String probeId) {
+        return configuration.probes().stream()
+                .filter(probe -> probe.id().equals(probeId))
+                .map(ProbeDefinition::displayName)
+                .findFirst()
+                .orElse(probeId);
+    }
+
+    public static List<String> detectedProbeIds(DetectionResult result) {
+        List<String> confirmed = result.evidence().stream()
+                .filter(item -> "CONFIRMATION".equals(item.metadata().get("pass")))
+                .filter(item -> "DETECTED".equals(item.metadata().get("classification")))
+                .map(item -> item.metadata().get("probe"))
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!confirmed.isEmpty()) return confirmed;
+        return result.evidence().stream()
+                .filter(item -> "DETECTED".equals(item.metadata().get("classification")))
+                .map(item -> item.metadata().get("probe"))
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
     private DetectionSession startCheck(DetectionTarget target, List<ProbeDefinition> configuredProbes,
                                         String trigger, Consumer<DetectionResult> result, boolean onlyIfIdle) {
         if (!started) throw new IllegalStateException("Client detection is not started");

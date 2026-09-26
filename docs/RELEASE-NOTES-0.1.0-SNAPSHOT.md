@@ -14,6 +14,9 @@ coverage.
 - Added regression coverage for negative and positive chunk-coordinate mapping.
 - Probe signs now try the block directly above the player first, with the
   existing nearby fallback positions retained when that location is occupied.
+- Automatic join checks now wait 20 ticks by default so the client has finished
+  joining before the first probe sign is opened; manual `/vacprobe` behavior is
+  unchanged.
 
 ## Highlights
 

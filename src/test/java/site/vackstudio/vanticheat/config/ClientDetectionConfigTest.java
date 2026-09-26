@@ -21,7 +21,7 @@ class ClientDetectionConfigTest {
             assertEquals(1, config.betweenProbeTicks());
             assertEquals(28, config.probes().size());
             assertTrue(config.autoCheckOnJoin());
-            assertEquals(1, config.autoCheckDelayTicks());
+            assertEquals(20, config.autoCheckDelayTicks());
             assertEquals(32, config.maxConcurrentAutoChecks());
             assertEquals(27, config.automaticProbes().size());
             assertTrue(config.probes().stream()

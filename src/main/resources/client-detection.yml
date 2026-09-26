@@ -9,7 +9,8 @@ client-detection:
   between-probe-ticks: 1
   auto-check:
     on-join: true
-    delay-ticks: 1
+    # Give the client time to finish joining before opening the probe sign.
+    delay-ticks: 20
     first-join-only: false
     max-concurrent: 32
     probes:

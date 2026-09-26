@@ -6,6 +6,13 @@ server-observable behavior telemetry. It is designed to collect evidence and
 enforce only confirmed client-detection results, not to claim complete cheat
 coverage.
 
+## Snapshot.1 Hotfix
+
+- Fixed Folia sign-probe cleanup and restoration scheduling. Chunk coordinates
+  are now calculated without calling `Location.getChunk()` from the global
+  scheduler, and all block access remains on the owning region scheduler.
+- Added regression coverage for negative and positive chunk-coordinate mapping.
+
 ## Highlights
 
 - Paper and Folia 1.21.11 support on Java 21.
@@ -205,7 +212,7 @@ Artifact:
 
 ## Validation
 
-- 69 automated tests passing.
+- 70 automated tests passing.
 - `mvn clean package` passing.
 - Production JAR inspection passing.
 - JAR contains plugin metadata, all configuration resources, detection,

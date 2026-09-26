@@ -89,7 +89,7 @@ public final class PaperSignProbeTransport implements ClientProbeTransport, List
             return;
         }
         Location location = candidates(operation.player).get(index);
-        scheduler.runAtLocation(new RegionTarget(location.getWorld(), location.getChunk().getX(), location.getChunk().getZ()), () -> {
+        scheduler.runAtLocation(regionTarget(location), () -> {
             if (!active(operation)) return;
             Block block = location.getBlock();
             if (!block.getType().isAir()) {
@@ -164,7 +164,7 @@ public final class PaperSignProbeTransport implements ClientProbeTransport, List
             return;
         }
         Location location = operation.location;
-        scheduler.runAtLocation(new RegionTarget(location.getWorld(), location.getChunk().getX(), location.getChunk().getZ()), () -> {
+        scheduler.runAtLocation(regionTarget(location), () -> {
             Block block = location.getBlock();
             try {
                 if (operation.original != null) operation.original.update(true, false);
@@ -190,7 +190,7 @@ public final class PaperSignProbeTransport implements ClientProbeTransport, List
     private void restore(Operation operation) {
         if (operation.location == null) return;
         Location location = operation.location;
-        scheduler.runAtLocation(new RegionTarget(location.getWorld(), location.getChunk().getX(), location.getChunk().getZ()), () -> {
+        scheduler.runAtLocation(regionTarget(location), () -> {
             Block block = location.getBlock();
             try {
                 if (operation.original != null) operation.original.update(true, false);
@@ -210,6 +210,15 @@ public final class PaperSignProbeTransport implements ClientProbeTransport, List
             case METEOR, TRANSLATE -> Component.translatable(probe.key(), probe.fallback());
             case KEYBIND -> Component.keybind(probe.key());
         };
+    }
+
+    private static RegionTarget regionTarget(Location location) {
+        return new RegionTarget(location.getWorld(), chunkCoordinate(location.getBlockX()),
+                chunkCoordinate(location.getBlockZ()));
+    }
+
+    static int chunkCoordinate(int blockCoordinate) {
+        return blockCoordinate >> 4;
     }
 
     private boolean active(Operation operation) {

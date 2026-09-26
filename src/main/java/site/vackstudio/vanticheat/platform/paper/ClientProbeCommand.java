@@ -59,12 +59,23 @@ public final class ClientProbeCommand implements CommandExecutor {
     private void report(CommandSender sender, Player target, EnforcementOutcome outcome) {
         DetectionResult result = outcome.result();
         String mods = detectedMods(result);
+        String session = sessionId(result);
         logger.info("Client probe result player=" + target.getName() + " status=" + result.status()
-                + " action=" + outcome.decision().action() + " evidence=" + result.evidence().size()
-                + " mods=" + mods);
+                + " action=" + outcome.decision().action() + " reason=" + outcome.decision().reason()
+                + " evidence=" + result.evidence().size() + " mods=" + mods + " session=" + session);
         sender.sendMessage(messages.render("probe.result", java.util.Map.of(
                 "player", target.getName(), "status", result.status(),
-                "evidence", result.evidence().size(), "mods", mods)));
+                "evidence", result.evidence().size(), "mods", mods,
+                "action", outcome.decision().action(), "reason", outcome.decision().reason(),
+                "session", session)));
+    }
+
+    static String sessionId(DetectionResult result) {
+        return result.evidence().stream()
+                .map(item -> item.metadata().get("session"))
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse("unknown");
     }
 
     private String detectedMods(DetectionResult result) {

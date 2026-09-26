@@ -28,7 +28,17 @@ coverage.
 - Manual client checks with `/vacprobe <player>`.
 - `/vac check <player>` alias for the manual client probe.
 - `/vac help` command help and `/vac reload` runtime configuration reload.
+- Lunar Client Apollo policy: Lunar stays allowed while the Lunar Minimap is
+  disabled via official Apollo override (`/vac lunar <player>` diagnostic).
+  Requires the Apollo plugin; VAntiCheat otherwise runs normally without it.
+  See `docs/LUNAR-CLIENT-POLICY.md`. Real Lunar client validation unverified.
+- P12.6 client-detection configuration hardening: bundled and existing files
+  are preserved and validated, invalid booleans report exact paths, and
+  failed reloads preserve the last known-good runtime. See
+  `docs/P12.6-CONFIGURATION-HARDENING.md`.
 - Manual and automatic probe results now include detected mod names (`mods=...`, `none` when clean).
+- Manual probe output and logs now show enforcement `action`, `reason`, and `session` so DETECTED, CONFIRMED, and KICKED are distinguishable.
+- Automatic join skips now log explicit terminal `SKIPPED` reasons instead of finishing silently; all auto lifecycle lines carry player + session. See `docs/P12.3-DETECTION-FLOW-AUDIT.md`.
 - Two-pass confirmation for client probe results.
 - Per-player detection sessions with bounded timeouts and concurrency.
 - Centralized enforcement for confirmed client-detection results.

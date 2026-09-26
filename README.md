@@ -1,4 +1,4 @@
-# VAntiCheat 0.1.0-SNAPSHOT
+# VAntiCheat 0.1.1
 
 VAntiCheat is a server-side anti-cheat plugin for Paper and Folia 1.21.11.
 It combines client/mod probes with conservative, server-observable behavior
@@ -6,8 +6,7 @@ analysis. Behavior detectors produce structured evidence and remain observe-only
 in the current release state; confirmed client-detection results use the
 centralized enforcement policy.
 
-This repository is currently a development snapshot. It is not a claim of
-complete live cheat-client coverage.
+This release is not a claim of complete live cheat-client coverage.
 
 ## Requirements
 
@@ -37,6 +36,13 @@ Behavior modules are server-observable and observe-only:
 These modules do not kick or ban players. Their evidence is not proof of a
 physical mouse action or client intent.
 
+## Lunar Client Policy
+
+Lunar Client itself is allowed. When the official Apollo plugin recognizes a
+Lunar player, VAntiCheat disables the Lunar Minimap through Apollo while the
+player remains connected. This policy does not disable Xaero or arbitrary
+Fabric minimap mods. Xaero Minimap and Xaero World Map probes remain disabled.
+
 ## Enforcement And Trust
 
 Confirmed client-detection results are evaluated by the centralized enforcement
@@ -49,6 +55,7 @@ Administrators with `vanticheat.admin` can use:
 /vac help
 /vac reload
 /vac check <player>
+/vac lunar <player>
 /vac trust <player>
 /vac trust add <player>
 /vac trust remove <player>
@@ -74,10 +81,10 @@ Build the exact production artifact with:
 mvn clean package
 ```
 
-Copy `target/vanticheat-0.1.0-SNAPSHOT.jar` to the server `plugins/` directory,
+Copy `target/vanticheat-0.1.1.jar` to the server `plugins/` directory,
 then start Paper or Folia. The plugin creates or loads:
 
-- `config.yml` for foundation, detection, and enforcement settings
+- `config.yml` for foundation, detection, enforcement, and Lunar policy settings
 - `client-detection.yml` for client/mod probes and automatic join checks
 - `behavior-detection.yml` for observe-only behavior modules
 - `messages.yml` for configurable command, probe, and kick messages using `&`
@@ -91,7 +98,7 @@ disabled unless a future validated policy explicitly changes that decision.
 
 Current automated validation:
 
-- 69 tests passing
+- 102 tests passing
 - `mvn clean package` passing
 - Production JAR inspection passing
 - `git diff --check` passing

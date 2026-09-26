@@ -52,15 +52,25 @@ public final class AutomaticClientDetectionListener implements Listener {
     }
 
     private void start(AutomaticCheckCoordinator.Target target, Player player) {
-        if (!player.isOnline() || module.isActive(target.id())) {
+        if (!player.isOnline()) {
             coordinator.complete(target.id());
+            logger.info("AutoCheck COMPLETE player=" + target.name() + " result=SKIPPED reason=offline-before-start");
+            return;
+        }
+        if (module.isActive(target.id())) {
+            coordinator.complete(target.id());
+            logger.info("AutoCheck COMPLETE player=" + target.name() + " result=SKIPPED reason=session-already-active");
             return;
         }
         DetectionSession session = module.checkIfIdle(
                 new DetectionTarget(target.id(), target.name(), true, player),
                 configuration.automaticProbes(), "JOIN", result -> finish(target, player, result));
-        if (session == null) coordinator.complete(target.id());
-        else logger.info("Automatic client check started: " + target.name());
+        if (session == null) {
+            coordinator.complete(target.id());
+            logger.info("AutoCheck COMPLETE player=" + target.name() + " result=SKIPPED reason=duplicate-or-busy");
+        } else {
+            logger.info("AutoCheck START player=" + target.name() + " session=" + session.sessionId());
+        }
     }
 
     private void finish(AutomaticCheckCoordinator.Target target, Player player, DetectionResult result) {
@@ -68,11 +78,20 @@ public final class AutomaticClientDetectionListener implements Listener {
                 new EnforcementTarget(target.id(), target.name(), player.isOnline(), player), result);
         coordinator.complete(target.id());
         String mods = detectedMods(result);
-        logger.info("Automatic client check result player=" + target.name() + " status=" + result.status()
-                + " action=" + outcome.decision().action() + " mods=" + mods);
-        if (outcome.decision().action().name().equals("KICK")) {
-            logger.info("Enforcement: KICK " + target.name() + " mods=" + mods);
-        }
+        String session = sessionId(result);
+        logger.info("AutoCheck RESULT player=" + target.name() + " session=" + session
+                + " result=" + result.status() + " mods=" + mods);
+        logger.info("AutoCheck ENFORCEMENT player=" + target.name() + " session=" + session
+                + " action=" + outcome.decision().action() + " reason=" + outcome.decision().reason());
+        logger.info("AutoCheck COMPLETE player=" + target.name() + " session=" + session);
+    }
+
+    static String sessionId(DetectionResult result) {
+        return result.evidence().stream()
+                .map(item -> item.metadata().get("session"))
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse("unknown");
     }
 
     private String detectedMods(DetectionResult result) {

@@ -52,8 +52,25 @@ public record ClientDetectionConfig(
         try {
             return parse(Files.readString(file));
         } catch (IOException | RuntimeException exception) {
-            logger.log(Level.WARNING, "Unable to load client-detection.yml; probing disabled", exception);
+            logger.log(Level.WARNING, "Unable to load client-detection.yml; clientDetection=UNAVAILABLE reason=INVALID_CONFIG\n"
+                    + exception.getMessage());
             return disabled();
+        }
+    }
+
+    /** Strict load used by reload preflight; it never replaces a live configuration. */
+    public static ClientDetectionConfig loadStrict(Path dataDirectory) throws IOException {
+        Path file = dataDirectory.resolve("client-detection.yml");
+        if (!Files.isRegularFile(file)) {
+            throw new IllegalArgumentException("file=client-detection.yml\npath=<file>\nexpected=file\nactual=missing");
+        }
+        try {
+            return parse(Files.readString(file));
+        } catch (IllegalArgumentException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException("file=client-detection.yml\npath=<unknown>\nreason="
+                    + exception.getMessage(), exception);
         }
     }
 
@@ -108,10 +125,10 @@ public record ClientDetectionConfig(
                 inAutoProbeIds = false;
                 String[] pair = pair(trimmed);
                 switch (pair[0]) {
-                    case "enabled" -> enabled = bool(pair[1]);
-                    case "double-check" -> doubleCheck = bool(pair[1]);
-                    case "timeout-ticks" -> timeoutTicks = Long.parseLong(pair[1]);
-                    case "between-probe-ticks" -> betweenProbeTicks = Long.parseLong(pair[1]);
+                    case "enabled" -> enabled = bool(pair[1], "client-detection.enabled");
+                    case "double-check" -> doubleCheck = bool(pair[1], "client-detection.double-check");
+                    case "timeout-ticks" -> timeoutTicks = Long.parseLong(unquote(pair[1]));
+                    case "between-probe-ticks" -> betweenProbeTicks = Long.parseLong(unquote(pair[1]));
                     default -> { }
                 }
                 continue;
@@ -129,10 +146,10 @@ public record ClientDetectionConfig(
                     inAutoProbeIds = false;
                     String[] pair = pair(trimmed);
                     switch (pair[0]) {
-                        case "on-join" -> autoCheckOnJoin = bool(pair[1]);
-                        case "delay-ticks" -> autoCheckDelayTicks = Long.parseLong(pair[1]);
-                        case "first-join-only" -> firstJoinOnly = bool(pair[1]);
-                        case "max-concurrent" -> maxConcurrentAutoChecks = Integer.parseInt(pair[1]);
+                        case "on-join" -> autoCheckOnJoin = bool(pair[1], "client-detection.auto-check.on-join");
+                        case "delay-ticks" -> autoCheckDelayTicks = Long.parseLong(unquote(pair[1]));
+                        case "first-join-only" -> firstJoinOnly = bool(pair[1], "client-detection.auto-check.first-join-only");
+                        case "max-concurrent" -> maxConcurrentAutoChecks = Integer.parseInt(unquote(pair[1]));
                         default -> { }
                     }
                     continue;
@@ -153,20 +170,21 @@ public record ClientDetectionConfig(
             }
             if (indent >= 6 && currentId != null) {
                 String[] pair = pair(trimmed);
-                rawProbes.get(currentId).put(pair[0], pair[1]);
+                 rawProbes.get(currentId).put(pair[0], pair[1]);
             }
         }
 
         List<ProbeDefinition> probes = new ArrayList<>();
         for (Map.Entry<String, Map<String, String>> entry : rawProbes.entrySet()) {
             Map<String, String> values = entry.getValue();
-            String displayName = required(values, "display-name");
-            String key = required(values, "key");
-            ProbeMode mode = ProbeMode.valueOf(required(values, "mode").toUpperCase(Locale.ROOT));
-            boolean probeEnabled = bool(values.getOrDefault("enabled", "true"));
-            String fallback = values.getOrDefault("fallback", "");
+            String displayName = unquote(required(values, "display-name"));
+            String key = unquote(required(values, "key"));
+            ProbeMode mode = ProbeMode.valueOf(unquote(required(values, "mode")).toUpperCase(Locale.ROOT));
+            boolean probeEnabled = bool(values.getOrDefault("enabled", "true"),
+                    "client-detection.probes." + entry.getKey() + ".enabled");
+            String fallback = unquote(values.getOrDefault("fallback", ""));
             ProbeVerificationStatus status = ProbeVerificationStatus.valueOf(
-                    values.getOrDefault("verification", "UNVERIFIED").toUpperCase(Locale.ROOT));
+                    unquote(values.getOrDefault("verification", "UNVERIFIED")).toUpperCase(Locale.ROOT));
             probes.add(new ProbeDefinition(entry.getKey(), displayName, key, mode,
                     fallback, probeEnabled, status));
         }
@@ -177,7 +195,7 @@ public record ClientDetectionConfig(
     private static String[] pair(String value) {
         String[] pair = value.split(":", 2);
         if (pair.length != 2) throw new IllegalArgumentException("Invalid config entry");
-        return new String[]{pair[0].trim(), unquote(pair[1].trim())};
+        return new String[]{pair[0].trim(), pair[1].trim()};
     }
 
     private static String required(Map<String, String> values, String key) {
@@ -186,10 +204,12 @@ public record ClientDetectionConfig(
         return value;
     }
 
-    private static boolean bool(String value) {
+    private static boolean bool(String value, String path) {
         if (value.equalsIgnoreCase("true")) return true;
         if (value.equalsIgnoreCase("false")) return false;
-        throw new IllegalArgumentException("Expected boolean");
+        String actual = isQuoted(value) ? "String" : value.matches("[-+]?\\d+(\\.\\d+)?") ? "Number" : "String";
+        throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                + "\nexpected=boolean\nactual=" + actual);
     }
 
     private static String unquote(String value) {
@@ -198,6 +218,11 @@ public record ClientDetectionConfig(
             return value.substring(1, value.length() - 1);
         }
         return value;
+    }
+
+    private static boolean isQuoted(String value) {
+        return value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
+                || (value.startsWith("'") && value.endsWith("'")));
     }
 
     public List<ProbeDefinition> automaticProbes() {

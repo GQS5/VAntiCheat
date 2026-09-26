@@ -8,3 +8,11 @@ enforcement:
   enabled: true
   confirmed-detection:
     message: "Cheating detected."
+# Lunar Client is allowed. When the official Apollo plugin is installed,
+# lunar.minimap.enabled=true disables the Lunar Minimap via Apollo override.
+# Players are never kicked or classified as cheats by this policy.
+lunar:
+  enabled: true
+  minimap:
+    enabled: true
+    action: DISABLE

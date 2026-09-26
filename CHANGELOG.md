@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.1 - Paper/Folia release
+
+### Added
+
+- Paper/Folia 1.21.11 server-side client/mod probe detection with automatic
+  join checks, confirmation passes, bounded sessions, and result reporting.
+- Observe-only Reach, KillAura, Fly, NoFall, Speed, Scaffold, and AutoClicker
+  behavior modules with structured evidence and bounded per-player state.
+- UUID-based Trusted Players with `/vac trust`, `/vac trust add`, `/vac trust
+  remove`, and `/vac trust list` administration.
+- Official Lunar Apollo integration that allows Lunar Client while disabling
+  only the Lunar Minimap when Apollo supports the player.
+- Path-aware client-detection configuration validation and last-known-good
+  reload behavior.
+
+### Validation
+
+- 102 automated tests pass.
+- `mvn clean test`, `mvn clean package`, and `git diff --check` pass.
+- Production JAR inspection passes with no test, source, or Velocity classes.
+- Live Paper/Folia player validation, controlled positive behavior-client
+  validation, and real Lunar GUI validation remain incomplete.
+
 ## 0.1.0-SNAPSHOT - Paper/Folia behavior foundation
 
 This is the current development snapshot of the Paper/Folia implementation.

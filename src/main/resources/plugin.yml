@@ -5,6 +5,9 @@ description: Minimal Paper and Folia VAntiCheat foundation
 author: VackStudio
 api-version: '1.21'
 folia-supported: true
+# Optional: official Apollo plugin for the Lunar Minimap server policy.
+# Unknown names are ignored by Bukkit; VAntiCheat starts without Apollo.
+softdepend: [Apollo, Apollo-Bukkit, Apollo-Folia]
 commands:
   vac:
     description: Manage VAntiCheat configuration and trusted players

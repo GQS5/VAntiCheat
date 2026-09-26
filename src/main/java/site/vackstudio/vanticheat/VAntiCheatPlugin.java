@@ -34,6 +34,10 @@ import site.vackstudio.vanticheat.detection.behavior.placement.ScaffoldDetector;
 import site.vackstudio.vanticheat.platform.paper.TrustedPlayerCommand;
 import site.vackstudio.vanticheat.trusted.PersistentTrustedPlayerService;
 import site.vackstudio.vanticheat.trusted.TrustedPlayerService;
+import site.vackstudio.vanticheat.lunar.LunarClientService;
+import site.vackstudio.vanticheat.lunar.LunarPolicyConfig;
+import site.vackstudio.vanticheat.platform.lunar.ApolloLunarBridge;
+import site.vackstudio.vanticheat.platform.lunar.LunarQuitListener;
 
 public final class VAntiCheatPlugin extends JavaPlugin {
     private VAntiCheatCore core;
@@ -41,6 +45,7 @@ public final class VAntiCheatPlugin extends JavaPlugin {
     private TrustedPlayerService trustedPlayers;
     private ClientProbeCommand clientProbeCommand;
     private Messages messages;
+    private LunarClientService lunarService;
 
     @Override
     public void onLoad() {
@@ -71,9 +76,10 @@ public final class VAntiCheatPlugin extends JavaPlugin {
                 new DefaultEnforcementPolicy(enforcementConfig.enabled()),
                 new PaperEnforcementExecutor(), messages.render("kick.confirmed"), getLogger(), trustedPlayers);
         TrustedPlayerCommand trustedCommand = new TrustedPlayerCommand(trustedPlayers, this::reloadPlugin,
-                this::runProbe, messages);
+                this::runProbe, this::runLunarStatus, messages);
         getCommand("vac").setExecutor(trustedCommand);
         getCommand("vac").setTabCompleter(trustedCommand);
+        startLunar();
         ClientDetectionConfig clientDetection = ClientDetectionConfig.load(getDataFolder().toPath(), getLogger());
         if (clientDetection.enabled() && config.detectionEnabled()) {
             var module = new CheckHacksClientDetectionModule(clientDetection,
@@ -82,6 +88,10 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             clientProbeCommand = new ClientProbeCommand(module, enforcement, getLogger(), messages);
             getCommand("vacprobe").setExecutor(clientProbeCommand);
             new AutomaticClientDetectionListener(this, scheduler, module, clientDetection, enforcement, getLogger());
+            getLogger().info("clientDetection=READY probes=" + clientDetection.probes().size());
+        } else {
+            String reason = !config.detectionEnabled() ? "DISABLED_BY_CONFIG" : "INVALID_CONFIG";
+            getLogger().warning("clientDetection=UNAVAILABLE reason=" + reason);
         }
         core.start();
         if (behaviorConfig.enabled()) {
@@ -148,6 +158,10 @@ public final class VAntiCheatPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (lunarService != null) {
+            lunarService.stop();
+            lunarService = null;
+        }
         if (behaviorRegistry != null) {
             behaviorRegistry.stop();
             behaviorRegistry = null;
@@ -173,11 +187,55 @@ public final class VAntiCheatPlugin extends JavaPlugin {
         clientProbeCommand.check(sender, playerName);
     }
 
-    public void reloadPlugin() {
+    public boolean reloadPlugin() {
+        try {
+            ClientDetectionConfig.loadStrict(getDataFolder().toPath());
+        } catch (java.io.IOException | RuntimeException exception) {
+            getLogger().warning("Reload rejected; last known-good configuration remains active: "
+                    + exception.getMessage());
+            return false;
+        }
         HandlerList.unregisterAll(this);
         onDisable();
         reloadConfig();
         onEnable();
+        return true;
+    }
+
+    private void startLunar() {
+        LunarPolicyConfig lunarConfig = LunarPolicyConfig.load(getDataFolder().toPath(), getLogger());
+        lunarService = new LunarClientService(getLogger());
+        var bridge = ApolloLunarBridge.create(getLogger(),
+                lunarService::handleRegistration, lunarService::handleUnregister).orElse(null);
+        lunarService.start(lunarConfig, bridge);
+        if (lunarConfig.enabled()) {
+            getServer().getPluginManager().registerEvents(new LunarQuitListener(lunarService), this);
+        }
+    }
+
+    private void runLunarStatus(org.bukkit.command.CommandSender sender, String playerName) {
+        org.bukkit.entity.Player player = getServer().getPlayerExact(playerName);
+        if (player == null || !player.isOnline()) {
+            sender.sendMessage(messages.render("lunar.offline"));
+            return;
+        }
+        if (lunarService == null) {
+            sender.sendMessage(messages.render("lunar.unavailable"));
+            return;
+        }
+        LunarClientService.LunarSnapshot snapshot = lunarService.snapshot(player.getUniqueId());
+        if (!snapshot.available()) {
+            sender.sendMessage(messages.render("lunar.unavailable"));
+            return;
+        }
+        sender.sendMessage(messages.render("lunar.report.header",
+                java.util.Map.of("player", player.getName())));
+        sender.sendMessage(messages.render("lunar.report.support",
+                java.util.Map.of("support", snapshot.lunar() ? "YES" : "NO")));
+        sender.sendMessage(messages.render("lunar.report.policy",
+                java.util.Map.of("policy", snapshot.minimapPolicyEnabled() ? "ENABLED" : "DISABLED")));
+        sender.sendMessage(messages.render("lunar.report.state",
+                java.util.Map.of("state", snapshot.state())));
     }
 
     public VAntiCheatCore core() {

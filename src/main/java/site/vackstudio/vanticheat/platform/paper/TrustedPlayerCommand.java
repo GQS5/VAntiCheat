@@ -18,19 +18,23 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter {
     private static final String PREFIX = "[VAntiCheat] ";
     private final TrustedPlayerService trusted;
-    private final Runnable reload;
+    private final BooleanSupplier reload;
     private final BiConsumer<CommandSender, String> probe;
+    private final BiConsumer<CommandSender, String> lunarStatus;
     private final Messages messages;
 
-    public TrustedPlayerCommand(TrustedPlayerService trusted, Runnable reload,
-                                BiConsumer<CommandSender, String> probe, Messages messages) {
+    public TrustedPlayerCommand(TrustedPlayerService trusted, BooleanSupplier reload,
+                                BiConsumer<CommandSender, String> probe,
+                                BiConsumer<CommandSender, String> lunarStatus, Messages messages) {
         this.trusted = trusted;
         this.reload = Objects.requireNonNull(reload, "reload");
         this.probe = Objects.requireNonNull(probe, "probe");
+        this.lunarStatus = Objects.requireNonNull(lunarStatus, "lunarStatus");
         this.messages = Objects.requireNonNull(messages, "messages");
     }
 
@@ -53,8 +57,12 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
-            reload.run();
-            sender.sendMessage(messages.render("command.reloaded"));
+            sender.sendMessage(messages.render(reload.getAsBoolean()
+                    ? "command.reloaded" : "command.reload-failed"));
+            return true;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("lunar")) {
+            lunarStatus.accept(sender, args[1]);
             return true;
         }
         if (args.length < 1 || !args[0].equalsIgnoreCase("trust")) {
@@ -94,12 +102,16 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
         sender.sendMessage(messages.render("command.help.trust-list"));
         sender.sendMessage(messages.render("command.help.check"));
         sender.sendMessage(messages.render("command.help.probe"));
+        sender.sendMessage(messages.render("command.help.lunar"));
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return matching(List.of("check", "help", "reload", "trust"), args[0]);
+        if (args.length == 1) return matching(List.of("check", "help", "lunar", "reload", "trust"), args[0]);
         if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
+            return matching(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("lunar")) {
             return matching(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("trust")) {

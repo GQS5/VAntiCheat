@@ -15,6 +15,7 @@ public final class Messages {
             Map.entry("command.no-permission-probe", "%prefix%You do not have permission to run client probes."),
             Map.entry("command.usage", "%prefix%Usage: /vac help"),
             Map.entry("command.reloaded", "%prefix%Configuration reloaded."),
+            Map.entry("command.reload-failed", "%prefix%Reload failed; last known-good configuration remains active."),
             Map.entry("command.help.header", "%prefix%Commands:"),
             Map.entry("command.help.reload", "%prefix%/vac reload - reload VAntiCheat configuration"),
             Map.entry("command.help.trust", "%prefix%/vac trust <player> - trust a player"),
@@ -23,6 +24,7 @@ public final class Messages {
             Map.entry("command.help.trust-list", "%prefix%/vac trust list - list trusted players"),
             Map.entry("command.help.check", "%prefix%/vac check <player> - run a client probe"),
             Map.entry("command.help.probe", "%prefix%/vacprobe <player> - run a client probe alias"),
+            Map.entry("command.help.lunar", "%prefix%/vac lunar <player> - show Lunar Client policy state"),
             Map.entry("command.trust.not-found", "%prefix%Player is not online or cached by the server."),
             Map.entry("command.trust.added", "%prefix%%player% is now trusted."),
             Map.entry("command.trust.exists", "%prefix%%player% is already trusted."),
@@ -33,9 +35,15 @@ public final class Messages {
             Map.entry("command.trust.entry", "%prefix%- %player%"),
             Map.entry("probe.usage", "Usage: /vacprobe <player>"),
             Map.entry("probe.offline", "Player is not online"),
-            Map.entry("probe.disabled", "%prefix%Client detection is disabled."),
+            Map.entry("probe.disabled", "%prefix%Client detection is unavailable; check the server log for the configuration error."),
             Map.entry("probe.start", "Starting client probe for %player%"),
-            Map.entry("probe.result", "Client probe %player%: %status% (evidence=%evidence%, mods=%mods%)"),
+            Map.entry("probe.result", "Client probe %player%: %status% (evidence=%evidence%, mods=%mods%, action=%action%)"),
+            Map.entry("lunar.unavailable", "%prefix%Lunar integration is unavailable (Apollo not installed or lunar.enabled=false)."),
+            Map.entry("lunar.offline", "%prefix%Player is not online."),
+            Map.entry("lunar.report.header", "%prefix%Lunar policy for %player%:"),
+            Map.entry("lunar.report.support", "%prefix%Lunar support: %support%"),
+            Map.entry("lunar.report.policy", "%prefix%Minimap policy: %policy%"),
+            Map.entry("lunar.report.state", "%prefix%Apollo state: %state%"),
             Map.entry("kick.confirmed", "Cheating detected."));
 
     private final Map<String, String> values;

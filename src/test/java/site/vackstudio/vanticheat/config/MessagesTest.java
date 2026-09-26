@@ -14,8 +14,9 @@ class MessagesTest {
     void bundledMessagesRenderColorsAndPlaceholders() {
         Messages messages = Messages.load(null, Logger.getAnonymousLogger());
 
-        assertEquals("Client probe Alex: CLEAN (evidence=3, mods=none)",
-                messages.render("probe.result", Map.of("player", "Alex", "status", "CLEAN", "evidence", 3, "mods", "none")));
+        assertEquals("Client probe Alex: CLEAN (evidence=3, mods=none, action=NONE)",
+                messages.render("probe.result", Map.of("player", "Alex", "status", "CLEAN", "evidence", 3,
+                        "mods", "none", "action", "NONE")));
     }
 
     @Test

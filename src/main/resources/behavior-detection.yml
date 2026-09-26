@@ -1,0 +1,28 @@
+# P5 behavior telemetry is conservative and observe-only.
+behavior-detection:
+  enabled: true
+  reach:
+    enabled: true
+    mode: observe
+  combat:
+    enabled: true
+    killaura:
+      enabled: true
+      mode: observe
+    autoclicker:
+      enabled: true
+      mode: observe
+  movement:
+    enabled: true
+    fly:
+      enabled: true
+      mode: observe
+    no-fall:
+      enabled: true
+      mode: observe
+    speed:
+      enabled: true
+      mode: observe
+    scaffold:
+      enabled: true
+      mode: observe

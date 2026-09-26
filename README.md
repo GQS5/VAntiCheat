@@ -1,106 +1,100 @@
-# VAntiCheat 0.1.0 — Velocity pre-backend verification firewall
+# VAntiCheat 0.1.0-SNAPSHOT
 
-VAntiCheat 0.1.0 is a minimal admission-control plugin for **Velocity 3.4.x**.
-During login — after authentication, before any backend connection — it sends a
-challenge over the `vanticheat:verify` login channel, validates the client's
-binary response (session, challenge, mod list), checks the mod list against an
-exact-match blocklist, and sets the login result to ALLOW or DENY. Only ALLOW
-reaches the backend.
+VAntiCheat is a server-side anti-cheat plugin for Paper and Folia 1.21.11.
+It combines client/mod probes with conservative, server-observable behavior
+analysis. Behavior detectors produce structured evidence and remain observe-only
+in the current release state; confirmed client-detection results use the
+centralized enforcement policy.
 
-VAntiCheat verifies and enforces information supplied through its verification
-protocol. It does not independently prove the internal truthfulness of a
-compromised client. A hostile client can report a false-clean mod list; the
-plugin guarantees bounded parsing, deterministic exact matching, and
-fail-closed admission — not client honesty. It provides no universal client
-integrity guarantee and detects nothing beyond its configured blocklist.
+This repository is currently a development snapshot. It is not a claim of
+complete live cheat-client coverage.
 
 ## Requirements
 
-- Velocity **3.4.x** (proxy), Java **21**
-- A backend (Paper/Folia) reachable by Velocity; Minecraft 1.21.x clients
-- Live-validated with Minecraft **1.21.11** (protocol 774), Fabric Loader
-  **0.19.5**, and the separate Fabric verifier speaking wire protocol v1
+- Minecraft server: Paper or Folia **1.21.11**
+- Java **21**
+- A server plugin installation; no proxy or client component is bundled
 
-VAntiCheat is **Velocity-only**. It is installed on the proxy. It does not run on Paper/Folia.
+## Included Detection
+
+Client detection supports configured translation/keybind probes, automatic join
+checks, confirmation passes, bounded sessions, and enforcement for confirmed
+client-detection results. Probe definitions remain operationally unverified
+unless documented as live-validated. The previously observed Xaero's Minimap
+false-positive probe is disabled and is not included in automatic join checks.
+
+Behavior modules are server-observable and observe-only:
+
+- Reach geometry
+- KillAura-oriented combat sequences
+- Fly movement patterns
+- NoFall fall/damage correlation
+- Speed movement patterns
+- Scaffold placement sequences
+- AutoClicker-oriented attack cadence
+
+These modules do not kick or ban players. Their evidence is not proof of a
+physical mouse action or client intent.
+
+## Enforcement And Trust
+
+Confirmed client-detection results are evaluated by the centralized enforcement
+service. Trusted Players changes the enforcement outcome to `NONE`; it does not
+disable detection or evidence collection.
+
+Administrators with `vanticheat.admin` can use:
+
+```text
+/vac trust <player>
+/vac trust add <player>
+/vac trust remove <player>
+/vac trust list
+```
+
+Trust is UUID-based and persists in
+`plugins/VAntiCheat/data/trusted-players.yml`. Removing trust restores normal
+enforcement for subsequent confirmed results. See
+[`docs/TRUSTED-PLAYERS.md`](docs/TRUSTED-PLAYERS.md).
 
 ## Installation
 
-1. Copy `vanticheat-0.1.0.jar` into the Velocity `plugins/` directory.
-2. Start Velocity. The plugin initializes and reads `plugins/VAntiCheat/config.yml`
-   (defaults are used when the file is absent).
-3. Point players at the Velocity address. Keep backend ports private (see below).
+Build the exact production artifact with:
 
-## Client verifier
-
-Strict mod verification requires the separate Fabric VAntiCheat Client Verifier
-mod on the client. 0.1.0 is strict-only: any login without a valid verifier
-response is denied before any backend connection. An unanswered challenge
-times out (`timeout-ms`) and is denied; a misunderstood or empty answer is
-rejected immediately as a protocol error. The `require-client-verifier` key is
-reserved for forward compatibility and currently changes nothing — there is no
-optional/permissive mode. The verifier is a separate artifact and is not
-bundled in this JAR.
-
-Verification sessions are bound to the login's TCP connection (remote IP +
-port), which is unique per concurrent connection and stable across the login
-phases; the username is enforced as an ownership check after lookup, never as
-a lookup key, so concurrent logins under one username cannot resolve each
-other's sessions.
-
-## Backend protection
-
-Velocity must be the only public entry point. Bind backends to localhost or
-firewall their ports; otherwise clients can connect directly to Paper/Folia and
-bypass Velocity — and VAntiCheat — entirely. VAntiCheat does not solve
-network-level access control. Enable Velocity player-info forwarding in
-production.
-
-## Configuration
-
-```yaml
-general:
-  enabled: true
-verification:
-  enabled: true
-  require-client-verifier: true
-  timeout-ms: 3000
-  max-report-bytes: 65535
-  max-session-count: 1000
-  protocol-version: 1
-mods:
-  freecam:
-    enabled: true
-    action: kick
-    identifiers:
-      - freecam
-    names:
-      - Freecam
-    versions: []
-    loaders:
-      - Fabric
-    jarSha256: []        # exact JAR SHA-256 hex values; legacy key "fingerprints" also loads
+```bash
+mvn clean package
 ```
 
-To forbid a mod, add its exact identifier (or name/version/loader) or its exact
-JAR SHA-256 to `jarSha256`. Matching is exact only: `freecam-helper`,
-`not-freecam`, and `freecam2` do not match a `freecam` rule unless explicitly
-configured. `metadataSha256` and `jarSha256` are distinct fields; only the
-configured field is matched. No internal protocol details are needed.
+Copy `target/vanticheat-0.1.0-SNAPSHOT.jar` to the server `plugins/` directory,
+then start Paper or Folia. The plugin creates or loads:
 
-Commands: `/vac status`, `/vac mods`, `/vac reload` (permissions
-`vanti.command`, `vanti.admin`, `vanti.mods`). Reload applies new blocklist and
-timeouts to new logins; in-flight verifications finish under the previous
-snapshot.
+- `config.yml` for foundation, detection, and enforcement settings
+- `client-detection.yml` for client/mod probes and automatic join checks
+- `behavior-detection.yml` for observe-only behavior modules
 
-## Limitations
+Do not enable an unverified client probe solely because it exists in the
+configuration. In particular, keep `xaeros-minimap` disabled unless a future
+validated policy explicitly changes that decision.
 
-- No verifier response means denial before any backend connection (unanswered
-  challenges time out; misunderstood answers are rejected as protocol errors).
-- Client-reported mod lists and hashes are untrusted input; exact matching only.
-- Compromised clients can lie; there is no remote attestation.
-- No gameplay, movement, combat, X-Ray, ESP, or behavioral detection in 0.1.0.
+## Validation
 
-## Building and testing
+Current automated validation:
 
-Build with JDK 21: `mvn clean package`. Tests: `mvn clean test` (85 tests:
-protocol, fuzz, gate, isolation, identity-binding, config). License: MIT.
+- 69 tests passing
+- `mvn clean package` passing
+- Production JAR inspection passing
+- `git diff --check` passing
+
+Live validation remains incomplete. Paper player validation, Folia player
+validation, Trusted Players live enforcement tests, concurrency tests, and
+controlled positive behavior-client tests require real client sessions. See
+[`docs/P12-LIVE-VALIDATION.md`](docs/P12-LIVE-VALIDATION.md) and
+[`docs/P12.2-VALIDATION-READINESS.md`](docs/P12.2-VALIDATION-READINESS.md).
+
+## Configuration References
+
+- [`src/main/resources/config.yml`](src/main/resources/config.yml)
+- [`src/main/resources/client-detection.yml`](src/main/resources/client-detection.yml)
+- [`src/main/resources/behavior-detection.yml`](src/main/resources/behavior-detection.yml)
+- [`docs/P11-AUTOCLICKER-DETECTION.md`](docs/P11-AUTOCLICKER-DETECTION.md)
+
+License: MIT.

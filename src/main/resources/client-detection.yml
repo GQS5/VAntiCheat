@@ -1,0 +1,212 @@
+# CheckHacks 1.3.1-derived probe definitions.
+# All entries are migrated/configured and currently marked UNVERIFIED.
+client-detection:
+  enabled: true
+  double-check: true
+  # 40 ticks is a 2 second failure deadline; live 1.21.11 responses arrive sooner.
+  timeout-ticks: 40
+  # One tick preserves client/server ordering without adding visible idle time.
+  between-probe-ticks: 1
+  auto-check:
+    on-join: true
+    delay-ticks: 1
+    first-join-only: false
+    max-concurrent: 32
+    probes:
+      - meteor-client
+      - liquidbounce
+      - freecam
+      - wurst
+      - xray-fabric
+      - chestesp
+      - killaura-fabric
+      - autofish
+      - lumina
+      - autoswitch
+      - bleachhack
+      - aristois
+      - coffee
+      - world-downloader
+      - autoclicker-fabric
+      - antiafk
+      - auto-clicker-mc
+      - trouser-streak
+      - ui-utils
+      - seeedcrackerx
+      - simple-world-downloader
+      - trouser-streak-newchunks
+      - trouser-streak-anhero
+      - glazed
+      - litematica
+      - itemscroller
+      - baritone
+  probes:
+    meteor-client:
+      display-name: "Meteor Client"
+      key: "key.meteor-client.open-gui"
+      mode: METEOR
+      enabled: true
+      verification: UNVERIFIED
+    liquidbounce:
+      display-name: "LiquidBounce"
+      key: "liquidbounce.module.killaura.name"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    freecam:
+      display-name: "Freecam"
+      key: "key.freecam.toggle"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    wurst:
+      display-name: "Wurst Client (-1.21)"
+      key: "key.wurst.zoom"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    xray-fabric:
+      display-name: "XRay (Fabric)"
+      key: "xray.config.toggle"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    chestesp:
+      display-name: "ChestESP"
+      key: "key.chestesp.toggle"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    killaura-fabric:
+      display-name: "KillAura (Fabric)"
+      key: "key.killaura"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    autofish:
+      display-name: "AutoFish"
+      key: "key.autofish.open_gui"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    lumina:
+      display-name: "Lumina"
+      key: "key.lumina.open_click_gui"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    autoswitch:
+      display-name: "AutoSwitch"
+      key: "key.autoswitch.toggle"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    bleachhack:
+      display-name: "BleachHack"
+      key: "bleachhack.module.killaura"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    aristois:
+      display-name: "Aristois"
+      key: "emc.module.killaura.name"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    coffee:
+      display-name: "Coffee Client"
+      key: "coffee.module.killaura.name"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    world-downloader:
+      display-name: "World Downloader"
+      key: "key.wdl.startStop"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    autoclicker-fabric:
+      display-name: "AutoClicker (Fabric)"
+      key: "autoclicker-fabric.hud.holding"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    antiafk:
+      display-name: "AntiAFK"
+      key: "key.antiafk.toggle"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    auto-clicker-mc:
+      display-name: "Auto Clicker (p1k0chu)"
+      key: "key.auto-clicker_.toggle"
+      mode: KEYBIND
+      enabled: true
+      verification: UNVERIFIED
+    trouser-streak:
+      display-name: "Trouser Streak"
+      key: "addon.trouser-streak.name"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    ui-utils:
+      display-name: "Ui Utils"
+      key: "key.ui-utils.restore_screen"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    seeedcrackerx:
+      display-name: "SeedCrackerX"
+      key: "cracker.already"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    simple-world-downloader:
+      display-name: "Simple World Downloader"
+      key: "swd.screen.config.title"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    trouser-streak-newchunks:
+      display-name: "Trouser Streak (NewerNewChunks)"
+      key: "module.trouser-streak.NewerNewChunks.description"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    trouser-streak-anhero:
+      display-name: "Trouser Streak (AnHero)"
+      key: "module.trouser-streak.AnHero.description"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    glazed:
+      display-name: "Glazed"
+      key: "addon.glazed.name"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    litematica:
+      display-name: "Litematica"
+      key: "litematica.hotkey.name.openmainmenuscreen"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    itemscroller:
+      display-name: "Item Scroller"
+      key: "itemscroller.hotkey.name.openconfigscreen"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED
+    xaeros-minimap:
+      display-name: "Xaero's Minimap"
+      key: "gui.xaero_minimap"
+      mode: TRANSLATE
+      # Legitimate minimap clients must not become confirmed cheat enforcement.
+      enabled: false
+      verification: UNVERIFIED
+    baritone:
+      display-name: "Baritone"
+      key: "baritone.setting.allowBreak"
+      mode: TRANSLATE
+      enabled: true
+      verification: UNVERIFIED

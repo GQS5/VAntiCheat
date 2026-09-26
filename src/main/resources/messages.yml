@@ -1,5 +1,0 @@
-verification-required: "VAntiCheat verification required. Please ensure you have a verified client."
-verification-failed: "Verification failed. Connection denied."
-forbidden-mod: "A forbidden mod was detected. Connection denied."
-verification-timeout: "Verification timed out. Connection denied."
-protocol-error: "Protocol error. Connection denied."

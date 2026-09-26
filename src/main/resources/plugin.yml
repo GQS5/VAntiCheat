@@ -1,0 +1,21 @@
+name: VAntiCheat
+version: ${project.version}
+main: site.vackstudio.vanticheat.VAntiCheatPlugin
+description: Minimal Paper and Folia VAntiCheat foundation
+author: VackStudio
+api-version: '1.21'
+folia-supported: true
+commands:
+  vac:
+    description: Manage VAntiCheat trusted players
+    usage: /vac trust [add|remove|list] [player]
+  vacprobe:
+    description: Run the configured client probe against a player
+    usage: /vacprobe <player>
+    permission: vanticheat.probe
+permissions:
+  vanticheat.admin:
+    description: Manage VAntiCheat trusted players
+    default: op
+  vanticheat.probe:
+    default: op

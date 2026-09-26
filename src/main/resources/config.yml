@@ -1,48 +1,10 @@
-general:
+# Minimal VAntiCheat foundation configuration.
+vanticheat:
   enabled: true
   debug: false
-  plugin-name: VAntiCheat
-  plugin-version: 0.1.0
-
-verification:
+detection:
   enabled: true
-  require-client-verifier: true
-  timeout-ms: 3000
-  max-report-bytes: 65535
-  max-session-count: 1000
-  session-cleanup-interval-ms: 60000
-  protocol-version: 1
-
-mods:
-  freecam:
-    enabled: true
-    action: kick
-    identifiers:
-      - freecam
-    names:
-      - Freecam
-    versions: []
-    loaders:
-      - Fabric
-    jarSha256: []
-  xray:
-    enabled: true
-    action: kick
-    identifiers:
-      - xray
-      - xray-reveal
-    names:
-      - XRay
-      - XRay Reveal
-    versions: []
-    loaders:
-      - Fabric
-      - Forge
-    jarSha256: []
-
-messages:
-  verification-required: "VAntiCheat verification required. Please ensure you have a verified client."
-  verification-failed: "Verification failed. Connection denied."
-  forbidden-mod: "A forbidden mod was detected. Connection denied."
-  verification-timeout: "Verification timed out. Connection denied."
-  protocol-error: "Protocol error. Connection denied."
+enforcement:
+  enabled: true
+  confirmed-detection:
+    message: "Cheating detected."

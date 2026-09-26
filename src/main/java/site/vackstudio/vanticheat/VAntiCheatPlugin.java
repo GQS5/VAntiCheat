@@ -1,147 +1,160 @@
 package site.vackstudio.vanticheat;
 
-import com.velocitypowered.api.plugin.Plugin;
-import com.velocitypowered.api.proxy.ProxyServer;
-import com.google.inject.Inject;
-import com.velocitypowered.api.plugin.annotation.DataDirectory;
-import com.velocitypowered.api.event.Subscribe;
-import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
-import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
-import com.velocitypowered.api.plugin.PluginContainer;
-import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
-import org.slf4j.Logger;
-import site.vackstudio.vanticheat.config.PluginConfig;
-import site.vackstudio.vanticheat.config.ConfigLoader;
-import site.vackstudio.vanticheat.connection.LoginVerificationListener;
-import site.vackstudio.vanticheat.enforcement.EnforcementDecision;
-import site.vackstudio.vanticheat.command.VacCommand;
-import site.vackstudio.vanticheat.policy.Blocklist;
-import site.vackstudio.vanticheat.protocol.ProtocolConstants;
-import site.vackstudio.vanticheat.protocol.VerificationProtocol;
-import site.vackstudio.vanticheat.connection.VerificationSessionManager;
-import site.vackstudio.vanticheat.VLogger;
+import org.bukkit.plugin.java.JavaPlugin;
+import site.vackstudio.vanticheat.config.ConfigurationLoader;
+import site.vackstudio.vanticheat.config.ClientDetectionConfig;
+import site.vackstudio.vanticheat.config.FoundationConfig;
+import site.vackstudio.vanticheat.config.EnforcementConfig;
+import site.vackstudio.vanticheat.core.VAntiCheatCore;
+import site.vackstudio.vanticheat.platform.PaperFoliaScheduler;
+import site.vackstudio.vanticheat.platform.PlatformContext;
+import site.vackstudio.vanticheat.platform.PlatformDetector;
+import site.vackstudio.vanticheat.detection.probe.CheckHacksClientDetectionModule;
+import site.vackstudio.vanticheat.platform.paper.PaperSignProbeTransport;
+import site.vackstudio.vanticheat.platform.paper.ClientProbeCommand;
+import site.vackstudio.vanticheat.platform.paper.PaperEnforcementExecutor;
+import site.vackstudio.vanticheat.platform.paper.AutomaticClientDetectionListener;
+import site.vackstudio.vanticheat.enforcement.DefaultEnforcementPolicy;
+import site.vackstudio.vanticheat.enforcement.EnforcementService;
+import site.vackstudio.vanticheat.config.BehaviorDetectionConfig;
+import site.vackstudio.vanticheat.detection.behavior.BehaviorModuleContext;
+import site.vackstudio.vanticheat.detection.behavior.BehaviorRegistry;
+import site.vackstudio.vanticheat.detection.behavior.ReachBehaviorModule;
+import site.vackstudio.vanticheat.detection.behavior.SignalLevel;
+import site.vackstudio.vanticheat.detection.behavior.combat.CombatEvidence;
+import site.vackstudio.vanticheat.detection.behavior.combat.KillAuraDetector;
+import site.vackstudio.vanticheat.detection.behavior.combat.autoclicker.AutoClickerDetector;
+import site.vackstudio.vanticheat.platform.paper.PaperBehaviorObservationListener;
+import site.vackstudio.vanticheat.detection.behavior.movement.FlyDetector;
+import site.vackstudio.vanticheat.detection.behavior.movement.NoFallDetector;
+import site.vackstudio.vanticheat.detection.behavior.movement.SpeedDetector;
+import site.vackstudio.vanticheat.detection.behavior.placement.ScaffoldDetector;
+import site.vackstudio.vanticheat.platform.paper.TrustedPlayerCommand;
+import site.vackstudio.vanticheat.trusted.PersistentTrustedPlayerService;
+import site.vackstudio.vanticheat.trusted.TrustedPlayerService;
 
-import java.nio.file.Path;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+public final class VAntiCheatPlugin extends JavaPlugin {
+    private VAntiCheatCore core;
+    private BehaviorRegistry behaviorRegistry;
+    private TrustedPlayerService trustedPlayers;
 
-@Plugin(id = "vanticheat", name = "VAntiCheat", version = "0.1.0", description = "Pre-backend client verification and forbidden-mod firewall")
-public class VAntiCheatPlugin {
-
-    private static VAntiCheatPlugin instance;
-    private final ProxyServer server;
-    private final Logger logger;
-    private final Path dataDirectory;
-    private PluginContainer container;
-    private volatile PluginConfig config;
-    private volatile Blocklist blocklist;
-    private volatile VerificationSessionManager sessionManager;
-    private volatile VerificationProtocol protocol;
-    private LoginVerificationListener loginListener;
-    private ScheduledExecutorService scheduledExecutor;
-    private volatile boolean enabled;
-    private final Object configLock = new Object();
-
-    @Inject
-    public VAntiCheatPlugin(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
-        this.server = server;
-        this.logger = logger;
-        this.dataDirectory = dataDirectory;
+    @Override
+    public void onLoad() {
+        getLogger().info("VAntiCheat loading");
     }
 
-    @Subscribe
-    public void onProxyInitialize(ProxyInitializeEvent event) {
-        instance = this;
-        VLogger.setLogger(logger);
-        VLogger.info("VAntiCheat 0.1.0 initializing...");
-
-        try {
-            Path base = dataDirectory != null ? dataDirectory : Path.of("plugins/VAntiCheat");
-            ConfigLoader loader = new ConfigLoader(base);
-            this.config = loader.load();
-        } catch (Exception e) {
-            VLogger.error("Failed to load config, using defaults", e);
-            this.config = PluginConfig.defaults();
+    @Override
+    public void onEnable() {
+        saveDefaultConfig();
+        saveResource("client-detection.yml", false);
+        saveResource("behavior-detection.yml", false);
+        FoundationConfig config = ConfigurationLoader.load(getDataFolder().toPath(), getLogger());
+        EnforcementConfig enforcementConfig = ConfigurationLoader.loadEnforcement(getDataFolder().toPath(), getLogger());
+        BehaviorDetectionConfig behaviorConfig = BehaviorDetectionConfig.load(getDataFolder().toPath(), getLogger());
+        trustedPlayers = new PersistentTrustedPlayerService(getDataFolder().toPath()
+                .resolve("data").resolve("trusted-players.yml"), getLogger());
+        trustedPlayers.load();
+        if (!config.enabled()) {
+            getLogger().info("VAntiCheat is disabled");
+            return;
         }
-
-        this.enabled = config.isGeneralEnabled();
-        this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "vanticheat-scheduler");
-            t.setDaemon(true);
-            return t;
-        });
-        this.blocklist = new Blocklist(config);
-        this.protocol = new VerificationProtocol(config.getProtocolVersion(), config.getTimeoutMs());
-        this.sessionManager = new VerificationSessionManager(config.getMaxSessionCount(), config.getCleanupIntervalMs());
-        this.loginListener = new LoginVerificationListener(this);
-
-        if (this.enabled && this.config.isVerificationEnabled()) {
-            server.getEventManager().register(this, loginListener);
-            server.getChannelRegistrar().register(
-                    MinecraftChannelIdentifier.from(ProtocolConstants.PROTOCOL_CHANNEL));
+        var platform = PlatformDetector.detect(getServer());
+        var scheduler = new PaperFoliaScheduler(this, getServer(), platform);
+        core = new VAntiCheatCore(config, new PlatformContext(platform, scheduler), getLogger());
+        EnforcementService enforcement = new EnforcementService(
+                new DefaultEnforcementPolicy(enforcementConfig.enabled()),
+                new PaperEnforcementExecutor(), enforcementConfig.confirmedDetectionMessage(), getLogger(), trustedPlayers);
+        TrustedPlayerCommand trustedCommand = new TrustedPlayerCommand(trustedPlayers);
+        getCommand("vac").setExecutor(trustedCommand);
+        getCommand("vac").setTabCompleter(trustedCommand);
+        ClientDetectionConfig clientDetection = ClientDetectionConfig.load(getDataFolder().toPath(), getLogger());
+        if (clientDetection.enabled() && config.detectionEnabled()) {
+            var module = new CheckHacksClientDetectionModule(clientDetection,
+                    new PaperSignProbeTransport(this, scheduler, clientDetection.timeoutTicks(), config.debug()));
+            core.detectionRegistry().register(module);
+            getCommand("vacprobe").setExecutor(new ClientProbeCommand(module, enforcement, getLogger()));
+            new AutomaticClientDetectionListener(this, scheduler, module, clientDetection, enforcement, getLogger());
         }
-
-        this.scheduledExecutor.scheduleAtFixedRate(() -> {
-            try { sessionManager.cleanupExpired(); } catch (Exception e) { VLogger.error("Session cleanup error", e); }
-        }, 60, 60, TimeUnit.SECONDS);
-
-        server.getCommandManager().register(
-                server.getCommandManager().metaBuilder("vac").build(), new VacCommand(this));
-
-        VLogger.info("VAntiCheat 0.1.0 initialized. Enabled: {}", this.enabled);
-    }
-
-    @Subscribe
-    public void onProxyShutdown(ProxyShutdownEvent event) {
-        VLogger.info("VAntiCheat shutting down...");
-        if (scheduledExecutor != null) { scheduledExecutor.shutdownNow(); }
-        if (sessionManager != null) { sessionManager.shutdown(); }
-        VLogger.info("VAntiCheat shut down complete.");
-    }
-
-    public ScheduledExecutorService getScheduler() { return scheduledExecutor; }
-    public ProxyServer getProxy() { return server; }
-    public Logger getLogger() { return logger; }
-    public PluginContainer getContainer() { return container; }
-
-    public void setContainer(PluginContainer container) { this.container = container; }
-
-    public PluginConfig getConfig() {
-        synchronized (configLock) { return config; }
-    }
-
-    public void reloadConfig() {
-        synchronized (configLock) {
-            try {
-                Path base = dataDirectory != null ? dataDirectory : Path.of("plugins/VAntiCheat");
-                ConfigLoader loader = new ConfigLoader(base);
-                PluginConfig newConfig = loader.load();
-                this.config = newConfig;
-                this.enabled = newConfig.isGeneralEnabled();
-                this.blocklist = new Blocklist(newConfig);
-                this.protocol = new VerificationProtocol(newConfig.getProtocolVersion(), newConfig.getTimeoutMs());
-                this.sessionManager = new VerificationSessionManager(newConfig.getMaxSessionCount(), newConfig.getCleanupIntervalMs());
-                VLogger.info("Configuration reloaded successfully.");
-            } catch (Exception e) {
-                VLogger.error("Failed to reload configuration", e);
+        core.start();
+        if (behaviorConfig.enabled()) {
+            behaviorRegistry = new BehaviorRegistry();
+            behaviorRegistry.register(new ReachBehaviorModule(behaviorConfig.reachEnabled()));
+            if (behaviorConfig.combatEnabled()) {
+                behaviorRegistry.register(new KillAuraDetector(behaviorConfig.killauraEnabled()));
+                behaviorRegistry.register(new AutoClickerDetector(behaviorConfig.autoclickerEnabled()));
             }
+            if (behaviorConfig.movementEnabled()) {
+                behaviorRegistry.register(new FlyDetector(behaviorConfig.flyEnabled()));
+                behaviorRegistry.register(new NoFallDetector(behaviorConfig.noFallEnabled()));
+                behaviorRegistry.register(new SpeedDetector(behaviorConfig.speedEnabled()));
+                behaviorRegistry.register(new ScaffoldDetector(behaviorConfig.scaffoldEnabled()));
+            }
+            behaviorRegistry.start(new BehaviorModuleContext(getLogger(), signal -> {
+                if (signal.level() != SignalLevel.CLEAR) {
+                    getLogger().fine("Behavior signal detector=" + signal.detectorId()
+                            + " player=" + signal.playerId() + " level=" + signal.level()
+                            + " reason=" + signal.reason() + " evidence=" + signal.evidence());
+                }
+            }, evidence -> {
+                if (evidence.confidence().ordinal() >= 2) {
+                    getLogger().fine("Combat evidence detector=" + evidence.detector()
+                            + " player=" + evidence.attackerId() + " confidence=" + evidence.confidence()
+                            + " signals=" + evidence.signalTypes() + " context=" + evidence.context());
+                }
+             }, evidence -> {
+                 if (evidence.confidence().ordinal() >= 2) {
+                     getLogger().fine("AutoClicker evidence detector=" + evidence.detector()
+                             + " player=" + evidence.playerId() + " confidence=" + evidence.confidence()
+                             + " signals=" + evidence.signalTypes() + " context=" + evidence.context());
+                 }
+             }, evidence -> {
+                 if (evidence.confidence().ordinal() >= 2) {
+                     getLogger().fine("Movement evidence detector=" + evidence.detector()
+                            + " player=" + evidence.playerId() + " confidence=" + evidence.confidence()
+                            + " signals=" + evidence.signalTypes() + " context=" + evidence.context());
+                }
+            }, evidence -> {
+                if (evidence.confidence().ordinal() >= 2) {
+                    getLogger().fine("NoFall evidence detector=" + evidence.detector()
+                            + " player=" + evidence.playerId() + " confidence=" + evidence.confidence()
+                            + " signals=" + evidence.signalTypes() + " context=" + evidence.context());
+                }
+             }, evidence -> {
+                 if (evidence.confidence().ordinal() >= 2) {
+                     getLogger().fine("Speed evidence detector=" + evidence.detector()
+                             + " player=" + evidence.playerId() + " confidence=" + evidence.confidence()
+                             + " signals=" + evidence.signalTypes() + " context=" + evidence.context());
+                 }
+             }, evidence -> {
+                 if (evidence.confidence().ordinal() >= 2) {
+                     getLogger().fine("Scaffold evidence detector=" + evidence.detector()
+                             + " player=" + evidence.playerId() + " confidence=" + evidence.confidence()
+                             + " signals=" + evidence.signalTypes() + " context=" + evidence.context());
+                 }
+             }));
+            new PaperBehaviorObservationListener(this, behaviorRegistry, getLogger());
+        }
+        getLogger().info("VAntiCheat enabled; version=" + getPluginMeta().getVersion()
+                + " platform=" + platform + " debug=" + config.debug());
+    }
+
+    @Override
+    public void onDisable() {
+        if (behaviorRegistry != null) {
+            behaviorRegistry.stop();
+            behaviorRegistry = null;
+        }
+        if (core != null) {
+            core.shutdown();
+            getLogger().info("VAntiCheat disabled");
+        }
+        if (trustedPlayers != null) {
+            trustedPlayers.save();
+            trustedPlayers = null;
         }
     }
 
-    public boolean isEnabled() {
-        return enabled && config != null && config.isGeneralEnabled() && config.isVerificationEnabled();
-    }
-
-    public Blocklist getBlocklist() { return blocklist; }
-    public VerificationSessionManager getSessionManager() { return sessionManager; }
-    public VerificationProtocol getProtocol() { return protocol; }
-
-    public EnforcementDecision handleVerificationResult(String sessionId, boolean success, String reason) {
-        return sessionManager.handleVerificationResult(sessionId, success, reason);
-    }
-
-    public void onPlayerDisconnect(String playerId, String sessionId) {
-        sessionManager.handleDisconnect(sessionId);
+    public VAntiCheatCore core() {
+        return core;
     }
 }

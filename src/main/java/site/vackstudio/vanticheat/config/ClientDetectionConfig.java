@@ -241,9 +241,7 @@ public record ClientDetectionConfig(
     }
 
     public List<ProbeDefinition> automaticProbes() {
-        return autoProbeIds.stream()
-                .map(id -> probes.stream().filter(probe -> probe.id().equals(id)).findFirst().orElse(null))
-                .filter(java.util.Objects::nonNull)
+        return probes.stream()
                 .filter(ProbeDefinition::enabled)
                 .toList();
     }

@@ -7,41 +7,13 @@ client-detection:
   timeout-ticks: 40
   # One tick preserves client/server ordering without adding visible idle time.
   between-probe-ticks: 1
+  # Every probe with enabled: true is checked automatically.
   auto-check:
     on-join: true
     # Give the client time to finish joining before opening the probe sign.
     delay-ticks: 20
     first-join-only: false
     max-concurrent: 32
-    probes:
-      - meteor-client
-      - liquidbounce
-      - freecam
-      - wurst
-      - xray-fabric
-      - chestesp
-      - killaura-fabric
-      - autofish
-      - lumina
-      - autoswitch
-      - bleachhack
-      - aristois
-      - coffee
-      - world-downloader
-      - autoclicker-fabric
-      - antiafk
-      - auto-clicker-mc
-      - trouser-streak
-      - ui-utils
-      - seeedcrackerx
-      - simple-world-downloader
-      - trouser-streak-newchunks
-      - trouser-streak-anhero
-      - glazed
-       - itemscroller
-       - baritone
-       - xaeros-worldmap
-       - litematica
   probes:
     meteor-client:
       display-name: "Meteor Client"

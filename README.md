@@ -1,4 +1,4 @@
-# VAntiCheat 0.1.4
+# VAntiCheat 0.1.5
 
 VAntiCheat is a server-side anti-cheat plugin for Paper and Folia 1.21.11.
 It combines client/mod probes with conservative, server-observable behavior
@@ -82,7 +82,7 @@ Build the exact production artifact with:
 mvn clean package
 ```
 
-Copy `target/vanticheat-0.1.4.jar` to the server `plugins/` directory,
+Copy `target/vanticheat-0.1.5.jar` to the server `plugins/` directory,
 then start Paper or Folia. The plugin creates or loads:
 
 - `config.yml` for foundation, detection, enforcement, and Lunar policy settings
@@ -90,6 +90,9 @@ then start Paper or Folia. The plugin creates or loads:
 - `behavior-detection.yml` for observe-only behavior modules
 - `messages.yml` for configurable command, probe, and kick messages using `&`
   colors and `%placeholders%`
+
+Set a probe's `enabled` value to `true` or `false`; all enabled probes are
+automatically checked on join. No separate probe ID list is required.
 
 Do not enable an unverified client probe solely because it exists in the
 configuration. `xaeros-minimap` remains disabled. The bundled policy explicitly

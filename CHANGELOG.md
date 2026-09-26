@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 - Simpler probe configuration
+
+- Automatic checks now use every probe with `enabled: true`.
+- Removed the need to maintain a separate automatic probe ID list.
+
 ## 0.1.4 - Translation probe evaluator fix
 
 - Fixed empty `TRANSLATE` fallbacks incorrectly classifying every non-empty

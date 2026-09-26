@@ -16,15 +16,19 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.function.BiConsumer;
 
 public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter {
     private static final String PREFIX = "[VAntiCheat] ";
     private final TrustedPlayerService trusted;
     private final Runnable reload;
+    private final BiConsumer<CommandSender, String> probe;
 
-    public TrustedPlayerCommand(TrustedPlayerService trusted, Runnable reload) {
+    public TrustedPlayerCommand(TrustedPlayerService trusted, Runnable reload,
+                                BiConsumer<CommandSender, String> probe) {
         this.trusted = trusted;
         this.reload = Objects.requireNonNull(reload, "reload");
+        this.probe = Objects.requireNonNull(probe, "probe");
     }
 
     @Override
@@ -40,6 +44,10 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
             reload.run();
             sender.sendMessage(PREFIX + "Configuration reloaded.");
+            return true;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
+            probe.accept(sender, args[1]);
             return true;
         }
         if (args.length < 1 || !args[0].equalsIgnoreCase("trust")) {
@@ -77,12 +85,16 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
         sender.sendMessage(PREFIX + "/vac trust add <player> - trust a player");
         sender.sendMessage(PREFIX + "/vac trust remove <player> - remove trust");
         sender.sendMessage(PREFIX + "/vac trust list - list trusted players");
-        sender.sendMessage(PREFIX + "/vacprobe <player> - run a client probe");
+        sender.sendMessage(PREFIX + "/vac check <player> - run a client probe");
+        sender.sendMessage(PREFIX + "/vacprobe <player> - run a client probe alias");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) return matching(List.of("help", "reload", "trust"), args[0]);
+        if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
+            return matching(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
+        }
         if (args.length == 2 && args[0].equalsIgnoreCase("trust")) {
             List<String> values = new ArrayList<>(List.of("add", "remove", "list"));
             Bukkit.getOnlinePlayers().forEach(player -> values.add(player.getName()));

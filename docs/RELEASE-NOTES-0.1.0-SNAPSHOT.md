@@ -23,6 +23,7 @@ coverage.
 - Paper and Folia 1.21.11 support on Java 21.
 - Automatic client checks when players join.
 - Manual client checks with `/vacprobe <player>`.
+- `/vac check <player>` alias for the manual client probe.
 - `/vac help` command help and `/vac reload` runtime configuration reload.
 - Two-pass confirmation for client probe results.
 - Per-player detection sessions with bounded timeouts and concurrency.

@@ -38,6 +38,7 @@ public final class VAntiCheatPlugin extends JavaPlugin {
     private VAntiCheatCore core;
     private BehaviorRegistry behaviorRegistry;
     private TrustedPlayerService trustedPlayers;
+    private ClientProbeCommand clientProbeCommand;
 
     @Override
     public void onLoad() {
@@ -65,7 +66,8 @@ public final class VAntiCheatPlugin extends JavaPlugin {
         EnforcementService enforcement = new EnforcementService(
                 new DefaultEnforcementPolicy(enforcementConfig.enabled()),
                 new PaperEnforcementExecutor(), enforcementConfig.confirmedDetectionMessage(), getLogger(), trustedPlayers);
-        TrustedPlayerCommand trustedCommand = new TrustedPlayerCommand(trustedPlayers, this::reloadPlugin);
+        TrustedPlayerCommand trustedCommand = new TrustedPlayerCommand(trustedPlayers, this::reloadPlugin,
+                this::runProbe);
         getCommand("vac").setExecutor(trustedCommand);
         getCommand("vac").setTabCompleter(trustedCommand);
         ClientDetectionConfig clientDetection = ClientDetectionConfig.load(getDataFolder().toPath(), getLogger());
@@ -73,7 +75,8 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             var module = new CheckHacksClientDetectionModule(clientDetection,
                     new PaperSignProbeTransport(this, scheduler, clientDetection.timeoutTicks(), config.debug()));
             core.detectionRegistry().register(module);
-            getCommand("vacprobe").setExecutor(new ClientProbeCommand(module, enforcement, getLogger()));
+            clientProbeCommand = new ClientProbeCommand(module, enforcement, getLogger());
+            getCommand("vacprobe").setExecutor(clientProbeCommand);
             new AutomaticClientDetectionListener(this, scheduler, module, clientDetection, enforcement, getLogger());
         }
         core.start();
@@ -153,6 +156,15 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             trustedPlayers.save();
             trustedPlayers = null;
         }
+        clientProbeCommand = null;
+    }
+
+    private void runProbe(org.bukkit.command.CommandSender sender, String playerName) {
+        if (clientProbeCommand == null) {
+            sender.sendMessage("[VAntiCheat] Client detection is disabled.");
+            return;
+        }
+        clientProbeCommand.check(sender, playerName);
     }
 
     public void reloadPlugin() {

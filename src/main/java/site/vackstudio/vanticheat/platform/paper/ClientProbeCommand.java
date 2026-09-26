@@ -32,10 +32,15 @@ public final class ClientProbeCommand implements CommandExecutor {
             sender.sendMessage("Usage: /vacprobe <player>");
             return true;
         }
-        Player target = Bukkit.getPlayerExact(args[0]);
+        check(sender, args[0]);
+        return true;
+    }
+
+    public void check(CommandSender sender, String playerName) {
+        Player target = Bukkit.getPlayerExact(playerName);
         if (target == null || !target.isOnline()) {
             sender.sendMessage("Player is not online");
-            return true;
+            return;
         }
         UUID id = target.getUniqueId();
         sender.sendMessage("Starting client probe for " + target.getName());
@@ -44,7 +49,6 @@ public final class ClientProbeCommand implements CommandExecutor {
                     new EnforcementTarget(id, target.getName(), target.isOnline(), target), result);
             report(sender, target, outcome);
         });
-        return true;
     }
 
     private void report(CommandSender sender, Player target, EnforcementOutcome outcome) {

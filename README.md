@@ -48,6 +48,7 @@ Administrators with `vanticheat.admin` can use:
 ```text
 /vac help
 /vac reload
+/vac check <player>
 /vac trust <player>
 /vac trust add <player>
 /vac trust remove <player>
@@ -62,6 +63,8 @@ enforcement for subsequent confirmed results. See
 `/vac reload` safely reinitializes VAntiCheat and applies updated plugin,
 client-detection, behavior, enforcement, and trusted-player configuration. It
 does not invoke Bukkit's global `/reload` command.
+
+`/vac check <player>` runs the same client probe as `/vacprobe <player>`.
 
 ## Installation
 

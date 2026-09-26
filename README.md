@@ -1,4 +1,4 @@
-# VAntiCheat 0.1.2
+# VAntiCheat 0.1.3
 
 VAntiCheat is a server-side anti-cheat plugin for Paper and Folia 1.21.11.
 It combines client/mod probes with conservative, server-observable behavior
@@ -19,9 +19,9 @@ This release is not a claim of complete live cheat-client coverage.
 Client detection supports configured translation/keybind probes, automatic join
 checks, confirmation passes, bounded sessions, and enforcement for confirmed
 client-detection results. Probe definitions remain operationally unverified
-unless documented as live-validated. Xaero's Minimap, Xaero's World Map, and
-Litematica are allowed utility mods and their probes are disabled and excluded
-from automatic join checks.
+unless documented as live-validated. Xaero's Minimap and Litematica remain
+allowed utility mods with probes disabled. The Xaero World Map probe is enabled
+in the bundled configuration and selected for automatic checks.
 
 Behavior modules are server-observable and observe-only:
 
@@ -41,7 +41,8 @@ physical mouse action or client intent.
 Lunar Client itself is allowed. When the official Apollo plugin recognizes a
 Lunar player, VAntiCheat disables the Lunar Minimap through Apollo while the
 player remains connected. This policy does not disable Xaero or arbitrary
-Fabric minimap mods. Xaero Minimap and Xaero World Map probes remain disabled.
+Fabric minimap mods. Xaero Minimap remains disabled; Xaero World Map detection
+is enabled in the bundled probe policy.
 
 ## Enforcement And Trust
 
@@ -81,7 +82,7 @@ Build the exact production artifact with:
 mvn clean package
 ```
 
-Copy `target/vanticheat-0.1.2.jar` to the server `plugins/` directory,
+Copy `target/vanticheat-0.1.3.jar` to the server `plugins/` directory,
 then start Paper or Folia. The plugin creates or loads:
 
 - `config.yml` for foundation, detection, enforcement, and Lunar policy settings
@@ -91,8 +92,9 @@ then start Paper or Folia. The plugin creates or loads:
   colors and `%placeholders%`
 
 Do not enable an unverified client probe solely because it exists in the
-configuration. Keep `xaeros-minimap`, `xaeros-worldmap`, and `litematica`
-disabled unless a future validated policy explicitly changes that decision.
+configuration. `xaeros-minimap` and `litematica` remain disabled. The bundled
+policy explicitly enables `xaeros-worldmap`; live positive validation remains
+unverified.
 
 ## Validation
 

@@ -40,7 +40,8 @@ client-detection:
       - glazed
       - litematica
       - itemscroller
-      - baritone
+       - baritone
+       - xaeros-worldmap
   probes:
     meteor-client:
       display-name: "Meteor Client"
@@ -210,8 +211,7 @@ client-detection:
       display-name: "Xaero's World Map"
       key: "gui.xaero_worldmap"
       mode: TRANSLATE
-      # Legitimate world-map clients must not become confirmed cheat enforcement.
-      enabled: false
+      enabled: true
       verification: UNVERIFIED
     baritone:
       display-name: "Baritone"

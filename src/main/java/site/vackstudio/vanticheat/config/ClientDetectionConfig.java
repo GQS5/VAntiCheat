@@ -195,7 +195,7 @@ public record ClientDetectionConfig(
     private static String[] pair(String value) {
         String[] pair = value.split(":", 2);
         if (pair.length != 2) throw new IllegalArgumentException("Invalid config entry");
-        return new String[]{pair[0].trim(), pair[1].trim()};
+        return new String[]{pair[0].trim(), stripInlineComment(pair[1].trim())};
     }
 
     private static String required(Map<String, String> values, String key) {
@@ -223,6 +223,21 @@ public record ClientDetectionConfig(
     private static boolean isQuoted(String value) {
         return value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
                 || (value.startsWith("'") && value.endsWith("'")));
+    }
+
+    private static String stripInlineComment(String value) {
+        boolean singleQuoted = false;
+        boolean doubleQuoted = false;
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (character == '\'' && !doubleQuoted) singleQuoted = !singleQuoted;
+            if (character == '"' && !singleQuoted) doubleQuoted = !doubleQuoted;
+            if (character == '#' && !singleQuoted && !doubleQuoted
+                    && (index == 0 || Character.isWhitespace(value.charAt(index - 1)))) {
+                return value.substring(0, index).stripTrailing();
+            }
+        }
+        return value;
     }
 
     public List<ProbeDefinition> automaticProbes() {

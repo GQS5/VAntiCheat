@@ -30,13 +30,13 @@ class ClientDetectionConfigTest {
         assertTrue(config.autoCheckOnJoin());
         assertEquals(20, config.autoCheckDelayTicks());
         assertEquals(32, config.maxConcurrentAutoChecks());
-        assertEquals(26, config.automaticProbes().size());
+        assertEquals(27, config.automaticProbes().size());
         assertTrue(config.probes().stream()
                 .filter(probe -> probe.id().equals("xaeros-minimap"))
                 .noneMatch(probe -> probe.enabled()));
-        assertTrue(config.probes().stream()
-                .filter(probe -> probe.id().equals("xaeros-worldmap"))
-                .noneMatch(probe -> probe.enabled()));
+            assertTrue(config.probes().stream()
+                    .filter(probe -> probe.id().equals("xaeros-worldmap"))
+                    .anyMatch(probe -> probe.enabled()));
         assertTrue(config.probes().stream()
                 .filter(probe -> probe.id().equals("litematica"))
                 .noneMatch(probe -> probe.enabled()));
@@ -92,5 +92,13 @@ class ClientDetectionConfigTest {
 
         assertTrue(exception.getMessage().contains("path=client-detection.probes.test.enabled"));
         assertTrue(exception.getMessage().contains("actual=String"));
+    }
+
+    @Test
+    void inlineCommentsDoNotChangeUnquotedBooleanType() {
+        ClientDetectionConfig config = ClientDetectionConfig.parse(
+                "client-detection:\n  enabled: true # valid YAML comment\n");
+
+        assertTrue(config.enabled());
     }
 }

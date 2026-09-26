@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 - Xaero World Map probe policy
+
+- Enabled `xaeros-worldmap` in the bundled automatic probe policy.
+- Kept `xaeros-minimap` disabled.
+- Existing server configurations must add `xaeros-worldmap` to
+  `client-detection.auto-check.probes`; VAntiCheat never overwrites them.
+
 ## 0.1.2 - Apollo optional-dependency hotfix
 
 - Fixed startup failure when the optional Apollo plugin/API is absent or

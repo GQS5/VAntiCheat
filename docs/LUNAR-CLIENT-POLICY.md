@@ -92,5 +92,5 @@ only; exposes no protocol internals.
 ## Limitation
 
 Apollo controls Lunar Client features only. It does **not** disable Xaero's
-Minimap or arbitrary Fabric mods. `xaeros-minimap` and `xaeros-worldmap`
-remain disabled probes and a separate policy problem.
+Minimap or arbitrary Fabric mods. `xaeros-minimap` remains disabled;
+`xaeros-worldmap` is a separate enabled probe in the bundled policy.

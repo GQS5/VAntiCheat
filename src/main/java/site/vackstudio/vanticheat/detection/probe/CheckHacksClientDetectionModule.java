@@ -101,6 +101,11 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
         sessionTrigger.put(session.sessionId(), trigger);
         session.start();
         List<ProbeDefinition> probes = configuredProbes.stream().filter(ProbeDefinition::enabled).toList();
+        if (context != null && context.configuration().debug()) {
+            context.logger().info("[ClientProbe] SELECT trigger=" + trigger
+                    + " session=" + session.sessionId() + " player=" + target.name()
+                    + " uuid=" + target.id() + " probes=" + probeSummary(probes));
+        }
         if (probes.isEmpty()) {
             complete(session, DetectionStatus.SKIPPED, "no probes configured", trigger, result);
             return session;
@@ -162,6 +167,13 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                     addEvidence(session, batch.get(i), status, response.outcome(), pass, trigger(session));
                 }
             }
+            if (context != null && context.configuration().debug()) {
+                context.logger().info("[ClientProbe] PASS trigger=" + trigger(session)
+                        + " session=" + session.sessionId() + " pass=" + pass
+                        + " batch=" + probeSummary(batch) + " outcome=" + response.outcome()
+                        + " statuses=" + statuses.subList(batchStart,
+                        Math.min(batchStart + batch.size(), statuses.size())));
+            }
             Scheduler scheduler = context.platform().scheduler();
             scheduler.runGlobalLater(() -> runPass(session, target, probes, pass, statuses, complete),
                     configuration.betweenProbeTicks());
@@ -188,11 +200,19 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                 ID, Instant.now(), java.util.Map.of(
                         "session", session.sessionId().toString(),
                         "probe", probe.id(),
+                        "displayName", probe.displayName(),
                         "mode", probe.mode().name(),
-                         "transport", outcome.name(),
-                         "classification", status.name(),
-                         "pass", pass.name(),
-                         "trigger", trigger)));
+                        "transport", outcome.name(),
+                        "classification", status.name(),
+                        "pass", pass.name(),
+                        "trigger", trigger)));
+    }
+
+    private static String probeSummary(List<ProbeDefinition> probes) {
+        return probes.stream()
+                .map(probe -> probe.id() + "(" + probe.displayName() + ")")
+                .toList()
+                .toString();
     }
 
     private String trigger(DetectionSession session) {

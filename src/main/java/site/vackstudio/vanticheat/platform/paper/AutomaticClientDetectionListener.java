@@ -48,18 +48,21 @@ public final class AutomaticClientDetectionListener implements Listener {
         AutomaticCheckCoordinator.Target target = new AutomaticCheckCoordinator.Target(
                 player.getUniqueId(), player.getName(), player.isOnline(), !player.hasPlayedBefore(), player);
         boolean scheduled = coordinator.schedule(target, () -> start(target, player));
-        if (scheduled) logger.info("Automatic client check scheduled: " + player.getName());
+        if (scheduled) logger.info("AutoCheck SCHEDULED player=" + player.getName()
+                + " uuid=" + player.getUniqueId());
     }
 
     private void start(AutomaticCheckCoordinator.Target target, Player player) {
         if (!player.isOnline()) {
             coordinator.complete(target.id());
-            logger.info("AutoCheck COMPLETE player=" + target.name() + " result=SKIPPED reason=offline-before-start");
+            logger.info("AutoCheck COMPLETE player=" + target.name() + " uuid=" + target.id()
+                    + " result=SKIPPED reason=offline-before-start");
             return;
         }
         if (module.isActive(target.id())) {
             coordinator.complete(target.id());
-            logger.info("AutoCheck COMPLETE player=" + target.name() + " result=SKIPPED reason=session-already-active");
+            logger.info("AutoCheck COMPLETE player=" + target.name() + " uuid=" + target.id()
+                    + " result=SKIPPED reason=session-already-active");
             return;
         }
         DetectionSession session = module.checkIfIdle(
@@ -67,9 +70,11 @@ public final class AutomaticClientDetectionListener implements Listener {
                 configuration.automaticProbes(), "JOIN", result -> finish(target, player, result));
         if (session == null) {
             coordinator.complete(target.id());
-            logger.info("AutoCheck COMPLETE player=" + target.name() + " result=SKIPPED reason=duplicate-or-busy");
+            logger.info("AutoCheck COMPLETE player=" + target.name() + " uuid=" + target.id()
+                    + " result=SKIPPED reason=duplicate-or-busy");
         } else {
-            logger.info("AutoCheck START player=" + target.name() + " session=" + session.sessionId());
+            logger.info("AutoCheck START player=" + target.name() + " uuid=" + target.id()
+                    + " session=" + session.sessionId() + " trigger=JOIN");
         }
     }
 
@@ -79,11 +84,14 @@ public final class AutomaticClientDetectionListener implements Listener {
         coordinator.complete(target.id());
         String mods = detectedMods(result);
         String session = sessionId(result);
-        logger.info("AutoCheck RESULT player=" + target.name() + " session=" + session
-                + " result=" + result.status() + " mods=" + mods);
-        logger.info("AutoCheck ENFORCEMENT player=" + target.name() + " session=" + session
-                + " action=" + outcome.decision().action() + " reason=" + outcome.decision().reason());
-        logger.info("AutoCheck COMPLETE player=" + target.name() + " session=" + session);
+        logger.info("AutoCheck RESULT player=" + target.name() + " uuid=" + target.id()
+                + " session=" + session + " result=" + result.status()
+                + " reason=" + result.reason() + " mods=" + mods);
+        logger.info("AutoCheck ENFORCEMENT player=" + target.name() + " uuid=" + target.id()
+                + " session=" + session + " action=" + outcome.decision().action()
+                + " reason=" + outcome.decision().reason());
+        logger.info("AutoCheck COMPLETE player=" + target.name() + " uuid=" + target.id()
+                + " session=" + session + " result=" + result.status());
     }
 
     static String sessionId(DetectionResult result) {

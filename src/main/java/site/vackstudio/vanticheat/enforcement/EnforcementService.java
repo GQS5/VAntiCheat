@@ -8,6 +8,8 @@ import site.vackstudio.vanticheat.trusted.TrustedPlayerService;
 import java.time.Instant;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -52,7 +54,7 @@ public final class EnforcementService {
                 action = EnforcementAction.NONE;
                 reason = "enforcement already applied";
             } else if (action == EnforcementAction.KICK) {
-                if (!target.online() || !executor.kick(target, kickMessage)) {
+                if (!target.online() || !executor.kick(target, kickMessage(result))) {
                     action = EnforcementAction.NONE;
                     reason = "target offline or kick unavailable";
                 }
@@ -60,7 +62,10 @@ public final class EnforcementService {
         }
 
         if (ConfirmedDetection.isConfirmed(result)) {
-            logger.info("Confirmed detection: " + target.name() + " - Action: " + action);
+            logger.info("Confirmed detection: " + target.name()
+                    + " - Action: " + action
+                    + " - Mods: " + detectedMods(result)
+                    + " - Reason: " + result.reason());
         }
         Map<String, String> metadata = new HashMap<>();
         metadata.put("action", action.name());
@@ -83,5 +88,31 @@ public final class EnforcementService {
                 .findFirst()
                 .orElse(null);
         return target.id() + ":" + (session == null ? result.hashCode() : session);
+    }
+
+    private String kickMessage(DetectionResult result) {
+        return kickMessage + "\nDetected: " + detectedMods(result)
+                + "\nReason: " + result.reason();
+    }
+
+    private static String detectedMods(DetectionResult result) {
+        var confirmed = probeDetails(result, "CONFIRMATION");
+        if (!confirmed.isEmpty()) return String.join(", ", confirmed);
+        var initial = probeDetails(result, "INITIAL");
+        return initial.isEmpty() ? "unknown" : String.join(", ", initial);
+    }
+
+    private static java.util.List<String> probeDetails(DetectionResult result, String pass) {
+        return result.evidence().stream()
+                .filter(item -> pass.equals(item.metadata().get("pass")))
+                .filter(item -> "DETECTED".equals(item.metadata().get("classification")))
+                .map(item -> {
+                    String displayName = item.metadata().get("displayName");
+                    String probe = item.metadata().get("probe");
+                    return displayName == null || displayName.isBlank() ? probe : displayName;
+                })
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.collectingAndThen(Collectors.toCollection(LinkedHashSet::new),
+                        java.util.List::copyOf));
     }
 }

@@ -1,6 +1,7 @@
 package site.vackstudio.vanticheat.config;
 
 import org.junit.jupiter.api.Test;
+import site.vackstudio.vanticheat.detection.probe.ProbeDefinition;
 import site.vackstudio.vanticheat.detection.probe.ProbeMode;
 import site.vackstudio.vanticheat.detection.probe.ProbeVerificationStatus;
 
@@ -31,6 +32,8 @@ class ClientDetectionConfigTest {
         assertEquals(20, config.autoCheckDelayTicks());
         assertEquals(32, config.maxConcurrentAutoChecks());
         assertEquals(28, config.automaticProbes().size());
+        assertEquals(config.probes().stream().filter(ProbeDefinition::enabled).map(ProbeDefinition::id).toList(),
+                config.automaticProbes().stream().map(ProbeDefinition::id).toList());
         assertTrue(config.probes().stream()
                 .filter(probe -> probe.id().equals("xaeros-minimap"))
                 .noneMatch(probe -> probe.enabled()));

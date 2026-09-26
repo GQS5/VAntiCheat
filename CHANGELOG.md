@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.7 - Detection evidence and enforcement diagnostics
+
+- Added detected mod names and detection reasons to centralized kick messages.
+- Confirmed detections now log the player, action, detected mods, and reason.
+- Added probe display names to evidence and expanded automatic/manual check
+  lifecycle diagnostics.
+- Added automatic probe selection parity coverage and documented the Xaero map
+  policy.
+
 ## 0.1.6 - Apollo runtime diagnostics
 
 - Added explicit Lunar startup states: `DISABLED`, `READY`, and

@@ -60,7 +60,8 @@ public final class ClientProbeCommand implements CommandExecutor {
         DetectionResult result = outcome.result();
         String mods = detectedMods(result);
         String session = sessionId(result);
-        logger.info("Client probe result player=" + target.getName() + " status=" + result.status()
+        logger.info("Client probe result player=" + target.getName() + " uuid=" + target.getUniqueId()
+                + " status=" + result.status() + " resultReason=" + result.reason()
                 + " action=" + outcome.decision().action() + " reason=" + outcome.decision().reason()
                 + " evidence=" + result.evidence().size() + " mods=" + mods + " session=" + session);
         sender.sendMessage(messages.render("probe.result", java.util.Map.of(

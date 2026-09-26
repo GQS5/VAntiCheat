@@ -203,6 +203,8 @@ The plugin creates or loads these files in `plugins/VAntiCheat/`:
 - `client-detection.yml`: probe definitions, enabled state, timeout, spacing,
   double-checking, automatic join checks, and concurrency limit.
 - `behavior-detection.yml`: observe-only behavior module switches and modes.
+- `messages.yml`: configurable player-facing command, probe, and kick messages
+  with `&` color codes and `%placeholders%`.
 - `data/trusted-players.yml`: persistent trusted UUIDs and display names.
 
 Build the production artifact with:

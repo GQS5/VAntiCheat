@@ -5,6 +5,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import site.vackstudio.vanticheat.config.Messages;
 import site.vackstudio.vanticheat.detection.DetectionResult;
 import site.vackstudio.vanticheat.detection.DetectionTarget;
 import site.vackstudio.vanticheat.detection.probe.CheckHacksClientDetectionModule;
@@ -19,17 +20,20 @@ public final class ClientProbeCommand implements CommandExecutor {
     private final CheckHacksClientDetectionModule module;
     private final EnforcementService enforcement;
     private final Logger logger;
+    private final Messages messages;
 
-    public ClientProbeCommand(CheckHacksClientDetectionModule module, EnforcementService enforcement, Logger logger) {
+    public ClientProbeCommand(CheckHacksClientDetectionModule module, EnforcementService enforcement,
+                              Logger logger, Messages messages) {
         this.module = module;
         this.enforcement = enforcement;
         this.logger = logger;
+        this.messages = messages;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length != 1) {
-            sender.sendMessage("Usage: /vacprobe <player>");
+            sender.sendMessage(messages.render("probe.usage"));
             return true;
         }
         check(sender, args[0]);
@@ -39,11 +43,11 @@ public final class ClientProbeCommand implements CommandExecutor {
     public void check(CommandSender sender, String playerName) {
         Player target = Bukkit.getPlayerExact(playerName);
         if (target == null || !target.isOnline()) {
-            sender.sendMessage("Player is not online");
+            sender.sendMessage(messages.render("probe.offline"));
             return;
         }
         UUID id = target.getUniqueId();
-        sender.sendMessage("Starting client probe for " + target.getName());
+        sender.sendMessage(messages.render("probe.start", java.util.Map.of("player", target.getName())));
         module.check(new DetectionTarget(id, target.getName(), true, target), result -> {
             EnforcementOutcome outcome = enforcement.enforce(
                     new EnforcementTarget(id, target.getName(), target.isOnline(), target), result);
@@ -55,7 +59,8 @@ public final class ClientProbeCommand implements CommandExecutor {
         DetectionResult result = outcome.result();
         logger.info("Client probe result player=" + target.getName() + " status=" + result.status()
                 + " action=" + outcome.decision().action() + " evidence=" + result.evidence().size());
-        sender.sendMessage("Client probe " + target.getName() + ": " + result.status()
-                + " (evidence=" + result.evidence().size() + ")");
+        sender.sendMessage(messages.render("probe.result", java.util.Map.of(
+                "player", target.getName(), "status", result.status(),
+                "evidence", result.evidence().size())));
     }
 }

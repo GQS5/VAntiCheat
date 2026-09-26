@@ -9,6 +9,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import site.vackstudio.vanticheat.trusted.TrustedPlayer;
 import site.vackstudio.vanticheat.trusted.TrustedPlayerService;
+import site.vackstudio.vanticheat.config.Messages;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,26 +24,28 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
     private final TrustedPlayerService trusted;
     private final Runnable reload;
     private final BiConsumer<CommandSender, String> probe;
+    private final Messages messages;
 
     public TrustedPlayerCommand(TrustedPlayerService trusted, Runnable reload,
-                                BiConsumer<CommandSender, String> probe) {
+                                BiConsumer<CommandSender, String> probe, Messages messages) {
         this.trusted = trusted;
         this.reload = Objects.requireNonNull(reload, "reload");
         this.probe = Objects.requireNonNull(probe, "probe");
+        this.messages = Objects.requireNonNull(messages, "messages");
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 2 && args[0].equalsIgnoreCase("check")) {
             if (sender instanceof Player player && !player.hasPermission("vanticheat.probe")) {
-                sender.sendMessage(PREFIX + "You do not have permission to run client probes.");
+                sender.sendMessage(messages.render("command.no-permission-probe"));
                 return true;
             }
             probe.accept(sender, args[1]);
             return true;
         }
         if (sender instanceof Player player && !player.hasPermission("vanticheat.admin")) {
-            sender.sendMessage(PREFIX + "You do not have permission to manage trusted players.");
+            sender.sendMessage(messages.render("command.no-permission-admin"));
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("help")) {
@@ -51,11 +54,11 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
             reload.run();
-            sender.sendMessage(PREFIX + "Configuration reloaded.");
+            sender.sendMessage(messages.render("command.reloaded"));
             return true;
         }
         if (args.length < 1 || !args[0].equalsIgnoreCase("trust")) {
-            sender.sendMessage(PREFIX + "Usage: /vac help");
+            sender.sendMessage(messages.render("command.usage"));
             return true;
         }
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
@@ -63,7 +66,7 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
             return true;
         }
         if (args.length == 2 && (args[1].equalsIgnoreCase("add") || args[1].equalsIgnoreCase("remove"))) {
-            sender.sendMessage(PREFIX + "Usage: /vac help");
+            sender.sendMessage(messages.render("command.usage"));
             return true;
         }
         if (args.length == 2) {
@@ -78,19 +81,19 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
             remove(sender, args[2]);
             return true;
         }
-        sender.sendMessage(PREFIX + "Usage: /vac help");
+        sender.sendMessage(messages.render("command.usage"));
         return true;
     }
 
     private void help(CommandSender sender) {
-        sender.sendMessage(PREFIX + "Commands:");
-        sender.sendMessage(PREFIX + "/vac reload - reload VAntiCheat configuration");
-        sender.sendMessage(PREFIX + "/vac trust <player> - trust a player");
-        sender.sendMessage(PREFIX + "/vac trust add <player> - trust a player");
-        sender.sendMessage(PREFIX + "/vac trust remove <player> - remove trust");
-        sender.sendMessage(PREFIX + "/vac trust list - list trusted players");
-        sender.sendMessage(PREFIX + "/vac check <player> - run a client probe");
-        sender.sendMessage(PREFIX + "/vacprobe <player> - run a client probe alias");
+        sender.sendMessage(messages.render("command.help.header"));
+        sender.sendMessage(messages.render("command.help.reload"));
+        sender.sendMessage(messages.render("command.help.trust"));
+        sender.sendMessage(messages.render("command.help.trust-add"));
+        sender.sendMessage(messages.render("command.help.trust-remove"));
+        sender.sendMessage(messages.render("command.help.trust-list"));
+        sender.sendMessage(messages.render("command.help.check"));
+        sender.sendMessage(messages.render("command.help.probe"));
     }
 
     @Override
@@ -118,35 +121,36 @@ public final class TrustedPlayerCommand implements CommandExecutor, TabCompleter
     private void add(CommandSender sender, String name) {
         ResolvedPlayer resolved = resolve(name);
         if (resolved == null) {
-            sender.sendMessage(PREFIX + "Player is not online or cached by the server.");
+            sender.sendMessage(messages.render("command.trust.not-found"));
             return;
         }
         boolean added = trusted.add(resolved.id(), resolved.name());
         trusted.save();
-        sender.sendMessage(PREFIX + (added ? resolved.name() + " is now trusted."
-                : resolved.name() + " is already trusted."));
+        sender.sendMessage(messages.render(added ? "command.trust.added" : "command.trust.exists",
+                java.util.Map.of("player", resolved.name())));
     }
 
     private void remove(CommandSender sender, String name) {
         ResolvedPlayer resolved = resolve(name);
         if (resolved == null) {
-            sender.sendMessage(PREFIX + name + " is not trusted.");
+            sender.sendMessage(messages.render("command.trust.not-trusted", java.util.Map.of("player", name)));
             return;
         }
         boolean removed = trusted.remove(resolved.id());
         trusted.save();
-        sender.sendMessage(PREFIX + (removed ? resolved.name() + " is no longer trusted."
-                : name + " is not trusted."));
+        sender.sendMessage(messages.render(removed ? "command.trust.removed" : "command.trust.not-trusted",
+                java.util.Map.of("player", removed ? resolved.name() : name)));
     }
 
     private void list(CommandSender sender) {
         List<TrustedPlayer> players = trusted.list();
         if (players.isEmpty()) {
-            sender.sendMessage(PREFIX + "No trusted players.");
+            sender.sendMessage(messages.render("command.trust.empty"));
             return;
         }
-        sender.sendMessage(PREFIX + "Trusted players (" + players.size() + "):");
-        players.forEach(player -> sender.sendMessage(PREFIX + "- " + player.name()));
+        sender.sendMessage(messages.render("command.trust.header", java.util.Map.of("count", players.size())));
+        players.forEach(player -> sender.sendMessage(messages.render("command.trust.entry",
+                java.util.Map.of("player", player.name()))));
     }
 
     private ResolvedPlayer resolve(String name) {

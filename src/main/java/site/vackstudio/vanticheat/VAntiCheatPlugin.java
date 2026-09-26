@@ -6,6 +6,7 @@ import site.vackstudio.vanticheat.config.ConfigurationLoader;
 import site.vackstudio.vanticheat.config.ClientDetectionConfig;
 import site.vackstudio.vanticheat.config.FoundationConfig;
 import site.vackstudio.vanticheat.config.EnforcementConfig;
+import site.vackstudio.vanticheat.config.Messages;
 import site.vackstudio.vanticheat.core.VAntiCheatCore;
 import site.vackstudio.vanticheat.platform.PaperFoliaScheduler;
 import site.vackstudio.vanticheat.platform.PlatformContext;
@@ -39,6 +40,7 @@ public final class VAntiCheatPlugin extends JavaPlugin {
     private BehaviorRegistry behaviorRegistry;
     private TrustedPlayerService trustedPlayers;
     private ClientProbeCommand clientProbeCommand;
+    private Messages messages;
 
     @Override
     public void onLoad() {
@@ -50,6 +52,8 @@ public final class VAntiCheatPlugin extends JavaPlugin {
         saveDefaultConfig();
         saveResource("client-detection.yml", false);
         saveResource("behavior-detection.yml", false);
+        saveResource("messages.yml", false);
+        messages = Messages.load(getDataFolder().toPath(), getLogger());
         FoundationConfig config = ConfigurationLoader.load(getDataFolder().toPath(), getLogger());
         EnforcementConfig enforcementConfig = ConfigurationLoader.loadEnforcement(getDataFolder().toPath(), getLogger());
         BehaviorDetectionConfig behaviorConfig = BehaviorDetectionConfig.load(getDataFolder().toPath(), getLogger());
@@ -65,9 +69,9 @@ public final class VAntiCheatPlugin extends JavaPlugin {
         core = new VAntiCheatCore(config, new PlatformContext(platform, scheduler), getLogger());
         EnforcementService enforcement = new EnforcementService(
                 new DefaultEnforcementPolicy(enforcementConfig.enabled()),
-                new PaperEnforcementExecutor(), enforcementConfig.confirmedDetectionMessage(), getLogger(), trustedPlayers);
+                new PaperEnforcementExecutor(), messages.render("kick.confirmed"), getLogger(), trustedPlayers);
         TrustedPlayerCommand trustedCommand = new TrustedPlayerCommand(trustedPlayers, this::reloadPlugin,
-                this::runProbe);
+                this::runProbe, messages);
         getCommand("vac").setExecutor(trustedCommand);
         getCommand("vac").setTabCompleter(trustedCommand);
         ClientDetectionConfig clientDetection = ClientDetectionConfig.load(getDataFolder().toPath(), getLogger());
@@ -75,7 +79,7 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             var module = new CheckHacksClientDetectionModule(clientDetection,
                     new PaperSignProbeTransport(this, scheduler, clientDetection.timeoutTicks(), config.debug()));
             core.detectionRegistry().register(module);
-            clientProbeCommand = new ClientProbeCommand(module, enforcement, getLogger());
+            clientProbeCommand = new ClientProbeCommand(module, enforcement, getLogger(), messages);
             getCommand("vacprobe").setExecutor(clientProbeCommand);
             new AutomaticClientDetectionListener(this, scheduler, module, clientDetection, enforcement, getLogger());
         }
@@ -157,11 +161,13 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             trustedPlayers = null;
         }
         clientProbeCommand = null;
+        messages = null;
     }
 
     private void runProbe(org.bukkit.command.CommandSender sender, String playerName) {
         if (clientProbeCommand == null) {
-            sender.sendMessage("[VAntiCheat] Client detection is disabled.");
+            sender.sendMessage(messages == null ? "Client detection is disabled."
+                    : messages.render("probe.disabled"));
             return;
         }
         clientProbeCommand.check(sender, playerName);

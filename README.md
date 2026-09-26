@@ -80,6 +80,8 @@ then start Paper or Folia. The plugin creates or loads:
 - `config.yml` for foundation, detection, and enforcement settings
 - `client-detection.yml` for client/mod probes and automatic join checks
 - `behavior-detection.yml` for observe-only behavior modules
+- `messages.yml` for configurable command, probe, and kick messages using `&`
+  colors and `%placeholders%`
 
 Do not enable an unverified client probe solely because it exists in the
 configuration. Keep `xaeros-minimap`, `xaeros-worldmap`, and `litematica`

@@ -35,8 +35,9 @@ import site.vackstudio.vanticheat.platform.paper.TrustedPlayerCommand;
 import site.vackstudio.vanticheat.trusted.PersistentTrustedPlayerService;
 import site.vackstudio.vanticheat.trusted.TrustedPlayerService;
 import site.vackstudio.vanticheat.lunar.LunarClientService;
+import site.vackstudio.vanticheat.lunar.LunarClientIntegration;
 import site.vackstudio.vanticheat.lunar.LunarPolicyConfig;
-import site.vackstudio.vanticheat.platform.lunar.ApolloLunarBridge;
+import site.vackstudio.vanticheat.platform.lunar.ApolloBridgeLoader;
 import site.vackstudio.vanticheat.platform.lunar.LunarQuitListener;
 
 public final class VAntiCheatPlugin extends JavaPlugin {
@@ -205,8 +206,8 @@ public final class VAntiCheatPlugin extends JavaPlugin {
     private void startLunar() {
         LunarPolicyConfig lunarConfig = LunarPolicyConfig.load(getDataFolder().toPath(), getLogger());
         lunarService = new LunarClientService(getLogger());
-        var bridge = ApolloLunarBridge.create(getLogger(),
-                lunarService::handleRegistration, lunarService::handleUnregister).orElse(null);
+        LunarClientIntegration bridge = ApolloBridgeLoader.load(getLogger(),
+                lunarService::handleRegistration, lunarService::handleUnregister);
         lunarService.start(lunarConfig, bridge);
         if (lunarConfig.enabled()) {
             getServer().getPluginManager().registerEvents(new LunarQuitListener(lunarService), this);

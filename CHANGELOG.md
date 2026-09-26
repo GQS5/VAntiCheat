@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 - Apollo optional-dependency hotfix
+
+- Fixed startup failure when the optional Apollo plugin/API is absent or
+  incompatible. VAntiCheat now continues with Lunar integration unavailable
+  while all other systems remain enabled.
+- Added regression coverage for missing Apollo bridge loading.
+
 ## 0.1.1 - Paper/Folia release
 
 ### Added

@@ -1,4 +1,4 @@
-# VAntiCheat 0.1.1
+# VAntiCheat 0.1.2
 
 VAntiCheat is a server-side anti-cheat plugin for Paper and Folia 1.21.11.
 It combines client/mod probes with conservative, server-observable behavior
@@ -81,7 +81,7 @@ Build the exact production artifact with:
 mvn clean package
 ```
 
-Copy `target/vanticheat-0.1.1.jar` to the server `plugins/` directory,
+Copy `target/vanticheat-0.1.2.jar` to the server `plugins/` directory,
 then start Paper or Folia. The plugin creates or loads:
 
 - `config.yml` for foundation, detection, enforcement, and Lunar policy settings

@@ -16,6 +16,17 @@ class PaperSignProbeTransportTest {
     }
 
     @Test
+    void firstCandidateIsDirectlyAbovePlayer() {
+        Location playerFeet = new Location(null, 10, 64, -4);
+
+        Location candidate = PaperSignProbeTransport.candidates(playerFeet).get(0);
+
+        assertEquals(playerFeet.getBlockX(), candidate.getBlockX());
+        assertEquals(playerFeet.getBlockY() + 2, candidate.getBlockY());
+        assertEquals(playerFeet.getBlockZ(), candidate.getBlockZ());
+    }
+
+    @Test
     void calculatesChunkCoordinatesWithoutRetrievingChunks() {
         assertEquals(-2, PaperSignProbeTransport.chunkCoordinate(-17));
         assertEquals(-1, PaperSignProbeTransport.chunkCoordinate(-1));

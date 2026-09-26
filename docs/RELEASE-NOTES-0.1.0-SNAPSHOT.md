@@ -12,6 +12,8 @@ coverage.
   are now calculated without calling `Location.getChunk()` from the global
   scheduler, and all block access remains on the owning region scheduler.
 - Added regression coverage for negative and positive chunk-coordinate mapping.
+- Probe signs now try the block directly above the player first, with the
+  existing nearby fallback positions retained when that location is occupied.
 
 ## Highlights
 

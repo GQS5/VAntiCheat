@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.10 - Geyser/Floodgate detection fix
+
+- Resolve optional Geyser and Floodgate APIs through their Bukkit plugin
+  classloaders so Bedrock players are skipped reliably.
+
 ## 0.1.9 - Bedrock probe exclusion
 
 - Skip automatic and manual client probes for Bedrock players detected through

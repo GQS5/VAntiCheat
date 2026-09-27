@@ -1,6 +1,8 @@
 package site.vackstudio.vanticheat.platform.paper;
 
 import org.bukkit.entity.Player;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.UUID;
@@ -14,16 +16,19 @@ final class BedrockPlayerDetector {
     }
 
     private static boolean isFloodgatePlayer(UUID id) {
-        return invokeBoolean("org.geysermc.floodgate.api.FloodgateApi", "getInstance", id);
+        return invokeBoolean("Floodgate", "org.geysermc.floodgate.api.FloodgateApi", "getInstance", id);
     }
 
     private static boolean isGeyserPlayer(UUID id) {
-        return invokeBoolean("org.geysermc.geyser.api.GeyserApi", "api", id);
+        return invokeBoolean("Geyser-Spigot", "org.geysermc.geyser.api.GeyserApi", "api", id);
     }
 
-    private static boolean invokeBoolean(String className, String accessor, UUID id) {
+    private static boolean invokeBoolean(String pluginName, String className, String accessor, UUID id) {
         try {
-            Class<?> apiClass = Class.forName(className);
+            Plugin plugin = Bukkit.getPluginManager().getPlugin(pluginName);
+            ClassLoader loader = plugin == null ? BedrockPlayerDetector.class.getClassLoader()
+                    : plugin.getClass().getClassLoader();
+            Class<?> apiClass = Class.forName(className, true, loader);
             Object api = apiClass.getMethod(accessor).invoke(null);
             return Boolean.TRUE.equals(apiClass.getMethod("isBedrockPlayer", UUID.class).invoke(api, id));
         } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException

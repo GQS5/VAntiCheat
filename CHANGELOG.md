@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.11 - Clean reload output
+
+- Avoid warnings when existing configuration resources are reloaded.
+- Bundled configuration files are now copied only when missing.
+
 ## 0.1.10 - Geyser/Floodgate detection fix
 
 - Resolve optional Geyser and Floodgate APIs through their Bukkit plugin

@@ -56,9 +56,9 @@ public final class VAntiCheatPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        saveResource("client-detection.yml", false);
-        saveResource("behavior-detection.yml", false);
-        saveResource("messages.yml", false);
+        saveResourceIfMissing("client-detection.yml");
+        saveResourceIfMissing("behavior-detection.yml");
+        saveResourceIfMissing("messages.yml");
         messages = Messages.load(getDataFolder().toPath(), getLogger());
         FoundationConfig config = ConfigurationLoader.load(getDataFolder().toPath(), getLogger());
         EnforcementConfig enforcementConfig = ConfigurationLoader.loadEnforcement(getDataFolder().toPath(), getLogger());
@@ -201,6 +201,12 @@ public final class VAntiCheatPlugin extends JavaPlugin {
         reloadConfig();
         onEnable();
         return true;
+    }
+
+    private void saveResourceIfMissing(String resource) {
+        if (!getDataFolder().toPath().resolve(resource).toFile().isFile()) {
+            saveResource(resource, false);
+        }
     }
 
     private void startLunar() {

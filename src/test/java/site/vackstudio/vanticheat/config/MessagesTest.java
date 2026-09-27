@@ -20,6 +20,16 @@ class MessagesTest {
     }
 
     @Test
+    void kickMessageRendersMultilinePlaceholders() {
+        Messages messages = Messages.load(null, Logger.getAnonymousLogger());
+
+        assertEquals("\u00a7c\u00a7lConnection Lost\n\n\u00a7fCheating detected.\n"
+                        + "\u00a77Detected: \u00a7fXaero's Minimap\n\u00a77Reason: \u00a7fdouble-check complete",
+                messages.render("kick.confirmed", Map.of("mods", "Xaero's Minimap",
+                        "reason", "double-check complete")));
+    }
+
+    @Test
     void customMessagesOverrideDefaults() throws Exception {
         Path directory = Files.createTempDirectory("vanticheat-messages");
         Files.writeString(directory.resolve("messages.yml"),

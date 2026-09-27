@@ -44,7 +44,7 @@ public final class Messages {
             Map.entry("lunar.report.support", "%prefix%Lunar support: %support%"),
             Map.entry("lunar.report.policy", "%prefix%Minimap policy: %policy%"),
             Map.entry("lunar.report.state", "%prefix%Apollo state: %state%"),
-            Map.entry("kick.confirmed", "Cheating detected."));
+            Map.entry("kick.confirmed", "&c&lConnection Lost\n\n&fCheating detected.\n&7Detected: &f%mods%\n&7Reason: &f%reason%"));
 
     private final Map<String, String> values;
 
@@ -69,6 +69,7 @@ public final class Messages {
                         || (value.startsWith("'") && value.endsWith("'")))) {
                     value = value.substring(1, value.length() - 1);
                 }
+                value = value.replace("\\n", "\n");
                 values.put(key, value);
             }
         } catch (IOException | RuntimeException exception) {

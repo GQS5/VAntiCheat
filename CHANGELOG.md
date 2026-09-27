@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8 - Configurable kick messages
+
+- Moved the confirmed-detection kick message into `messages.yml`.
+- Added `%mods%` and `%reason%` placeholders with color and multiline support.
+- Preserved dynamic detection details for existing custom kick messages.
+
 ## 0.1.7 - Detection evidence and enforcement diagnostics
 
 - Added detected mod names and detection reasons to centralized kick messages.

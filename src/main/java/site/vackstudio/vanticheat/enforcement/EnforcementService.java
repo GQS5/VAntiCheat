@@ -91,8 +91,12 @@ public final class EnforcementService {
     }
 
     private String kickMessage(DetectionResult result) {
-        return kickMessage + "\nDetected: " + detectedMods(result)
-                + "\nReason: " + result.reason();
+        String mods = detectedMods(result);
+        String reason = result.reason();
+        if (kickMessage.contains("%mods%") || kickMessage.contains("%reason%")) {
+            return kickMessage.replace("%mods%", mods).replace("%reason%", reason);
+        }
+        return kickMessage + "\nDetected: " + mods + "\nReason: " + reason;
     }
 
     private static String detectedMods(DetectionResult result) {

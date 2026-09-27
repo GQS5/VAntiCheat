@@ -45,6 +45,11 @@ public final class AutomaticClientDetectionListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         if (!configuration.autoCheckOnJoin()) return;
         Player player = event.getPlayer();
+        if (BedrockPlayerDetector.isBedrock(player)) {
+            logger.info("AutoCheck SKIPPED player=" + player.getName()
+                    + " uuid=" + player.getUniqueId() + " reason=bedrock-player");
+            return;
+        }
         AutomaticCheckCoordinator.Target target = new AutomaticCheckCoordinator.Target(
                 player.getUniqueId(), player.getName(), player.isOnline(), !player.hasPlayedBefore(), player);
         boolean scheduled = coordinator.schedule(target, () -> start(target, player));

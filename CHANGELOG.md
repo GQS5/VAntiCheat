@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 - Bedrock probe exclusion
+
+- Skip automatic and manual client probes for Bedrock players detected through
+  Floodgate or Geyser.
+- Prevent Bedrock clients from entering probe sessions that cannot complete.
+
 ## 0.1.8 - Configurable kick messages
 
 - Moved the confirmed-detection kick message into `messages.yml`.

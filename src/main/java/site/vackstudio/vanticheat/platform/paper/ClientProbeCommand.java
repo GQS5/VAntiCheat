@@ -47,6 +47,10 @@ public final class ClientProbeCommand implements CommandExecutor {
             sender.sendMessage(messages.render("probe.offline"));
             return;
         }
+        if (BedrockPlayerDetector.isBedrock(target)) {
+            sender.sendMessage(messages.render("probe.bedrock-skipped"));
+            return;
+        }
         UUID id = target.getUniqueId();
         sender.sendMessage(messages.render("probe.start", java.util.Map.of("player", target.getName())));
         module.check(new DetectionTarget(id, target.getName(), true, target), result -> {

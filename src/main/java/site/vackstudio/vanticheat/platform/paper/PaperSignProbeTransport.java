@@ -236,17 +236,17 @@ public final class PaperSignProbeTransport implements ClientProbeTransport, List
 
     static List<Location> candidates(Location base) {
         List<Location> result = new ArrayList<>();
-        // Ground-level players need an air block above their feet; y - 1 is
-        // normally solid terrain and made every vanilla join fail placement.
-        result.add(base.clone().add(0, 3, 0));
-        result.add(base.clone().add(0, 1, 2));
-        result.add(base.clone().add(0, 1, -2));
-        result.add(base.clone().add(2, 1, 0));
-        result.add(base.clone().add(-2, 1, 0));
+        // Keep the sign above the player's head so placement cannot damage or
+        // obstruct the player while the probe is running.
+        result.add(base.clone().add(0, 4, 0));
         result.add(base.clone().add(0, 2, 2));
         result.add(base.clone().add(0, 2, -2));
         result.add(base.clone().add(2, 2, 0));
         result.add(base.clone().add(-2, 2, 0));
+        result.add(base.clone().add(0, 3, 2));
+        result.add(base.clone().add(0, 3, -2));
+        result.add(base.clone().add(2, 3, 0));
+        result.add(base.clone().add(-2, 3, 0));
         return result;
     }
 

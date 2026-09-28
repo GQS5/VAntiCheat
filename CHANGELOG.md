@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.12 - Safer probe placement
+
+- Raised probe signs one block higher to prevent player obstruction or damage.
+
 ## 0.1.11 - Clean reload output
 
 - Avoid warnings when existing configuration resources are reloaded.

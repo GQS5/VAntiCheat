@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.13 - Trusted player probe exclusion
+
+- Skip automatic and manual client probes for trusted players.
+- Trusted players no longer receive probe signs or create detection sessions.
+
 ## 0.1.12 - Safer probe placement
 
 - Raised probe signs one block higher to prevent player obstruction or damage.

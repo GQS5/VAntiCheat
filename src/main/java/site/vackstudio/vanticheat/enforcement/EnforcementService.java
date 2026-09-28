@@ -81,6 +81,10 @@ public final class EnforcementService {
                 new EnforcementDecision(action, reason));
     }
 
+    public boolean isTrusted(UUID playerId) {
+        return trustedPlayers.isTrusted(Objects.requireNonNull(playerId, "playerId"));
+    }
+
     private static String key(EnforcementTarget target, DetectionResult result) {
         String session = result.evidence().stream()
                 .map(item -> item.metadata().get("session"))

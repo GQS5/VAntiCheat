@@ -6,7 +6,7 @@
 
   <groupId>site.vackstudio</groupId>
   <artifactId>vanticheat</artifactId>
-  <version>0.1.12</version>
+  <version>0.1.13</version>
   <packaging>jar</packaging>
 
   <name>VAntiCheat</name>

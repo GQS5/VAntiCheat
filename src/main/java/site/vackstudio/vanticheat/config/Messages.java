@@ -36,6 +36,7 @@ public final class Messages {
             Map.entry("probe.usage", "Usage: /vacprobe <player>"),
             Map.entry("probe.offline", "Player is not online"),
             Map.entry("probe.bedrock-skipped", "%prefix%Client probes are disabled for Bedrock players."),
+            Map.entry("probe.trusted-skipped", "%prefix%Client probes are disabled for trusted players."),
             Map.entry("probe.disabled", "%prefix%Client detection is unavailable; check the server log for the configuration error."),
             Map.entry("probe.start", "Starting client probe for %player%"),
             Map.entry("probe.result", "Client probe %player%: %status% (evidence=%evidence%, mods=%mods%, action=%action%)"),

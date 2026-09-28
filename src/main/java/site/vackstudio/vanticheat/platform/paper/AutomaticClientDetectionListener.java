@@ -50,6 +50,11 @@ public final class AutomaticClientDetectionListener implements Listener {
                     + " uuid=" + player.getUniqueId() + " reason=bedrock-player");
             return;
         }
+        if (enforcement.isTrusted(player.getUniqueId())) {
+            logger.info("AutoCheck SKIPPED player=" + player.getName()
+                    + " uuid=" + player.getUniqueId() + " reason=trusted-player");
+            return;
+        }
         AutomaticCheckCoordinator.Target target = new AutomaticCheckCoordinator.Target(
                 player.getUniqueId(), player.getName(), player.isOnline(), !player.hasPlayedBefore(), player);
         boolean scheduled = coordinator.schedule(target, () -> start(target, player));

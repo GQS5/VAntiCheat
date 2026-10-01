@@ -24,12 +24,22 @@ public final class PaperFoliaScheduler implements Scheduler {
 
     @Override
     public TaskHandle runAtEntity(EntityTarget target, Runnable task) {
+        return runAtEntity(target, task, () -> { });
+    }
+
+    @Override
+    public TaskHandle runAtEntity(EntityTarget target, Runnable task, Runnable retired) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(task, "task");
+        Objects.requireNonNull(retired, "retired");
         Entity entity = require(target.nativeEntity(), Entity.class, "entity");
         if (platform == Platform.FOLIA) {
             ScheduledTask scheduled = entity.getScheduler().run(plugin,
-                    ignored -> task.run(), () -> { });
+                    ignored -> task.run(), retired);
+            if (scheduled == null) {
+                retired.run();
+                return cancelledHandle();
+            }
             return foliaHandle(scheduled);
         }
         return bukkitHandle(server.getScheduler().runTask(plugin, task));
@@ -62,7 +72,8 @@ public final class PaperFoliaScheduler implements Scheduler {
     @Override
     public TaskHandle runGlobalLater(Runnable task, long delayTicks) {
         Objects.requireNonNull(task, "task");
-        long delay = Math.max(1L, delayTicks);
+        if (delayTicks <= 0) return runGlobal(task);
+        long delay = delayTicks;
         if (platform == Platform.FOLIA) {
             ScheduledTask scheduled = server.getGlobalRegionScheduler().runDelayed(plugin,
                     ignored -> task.run(), delay);
@@ -103,6 +114,13 @@ public final class PaperFoliaScheduler implements Scheduler {
         return new TaskHandle() {
             @Override public void cancel() { task.cancel(); }
             @Override public boolean cancelled() { return task.isCancelled(); }
+        };
+    }
+
+    private static TaskHandle cancelledHandle() {
+        return new TaskHandle() {
+            @Override public void cancel() { }
+            @Override public boolean cancelled() { return true; }
         };
     }
 

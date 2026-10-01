@@ -48,6 +48,7 @@ public final class DetectionSession {
     }
 
     public synchronized void cancel(String reason) {
+        if (state == DetectionSessionState.COMPLETING || state.terminal()) return;
         requireActive();
         result = new DetectionResult(DetectionStatus.SKIPPED, requireReason(reason), evidence);
         state = DetectionSessionState.CANCELLED;
@@ -55,7 +56,7 @@ public final class DetectionSession {
 
     public synchronized void timeout(String reason) {
         requireActive();
-        result = new DetectionResult(DetectionStatus.ERROR, requireReason(reason), evidence);
+        result = new DetectionResult(DetectionStatus.TIMEOUT, requireReason(reason), evidence);
         state = DetectionSessionState.TIMED_OUT;
     }
 
@@ -97,7 +98,9 @@ public final class DetectionSession {
                 || status == DetectionStatus.UNCERTAIN
                 || status == DetectionStatus.PROTECTED
                 || status == DetectionStatus.SKIPPED
-                || status == DetectionStatus.ERROR;
+                || status == DetectionStatus.ERROR
+                || status == DetectionStatus.TIMEOUT
+                || status == DetectionStatus.UNSUPPORTED;
     }
 
     private static String requireReason(String reason) {

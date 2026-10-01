@@ -9,6 +9,8 @@ target/
 evidence/
 *.jsonl
 *.log
+*.log.gz
+logs/
 # OS
 .DS_Store
 Thumbs.db

@@ -1,16 +1,16 @@
 name: VAntiCheat
 version: ${project.version}
 main: site.vackstudio.vanticheat.VAntiCheatPlugin
-description: Minimal Paper and Folia VAntiCheat foundation
+description: Client and mod identity detection for Paper and Folia
 author: VackStudio
 api-version: '1.21'
 folia-supported: true
 # Optional: official Apollo plugin for the Lunar Minimap server policy.
 # Unknown names are ignored by Bukkit; VAntiCheat starts without Apollo.
-softdepend: [Apollo, Apollo-Bukkit, Apollo-Folia]
+softdepend: [Apollo, Apollo-Bukkit, Apollo-Folia, Floodgate, Geyser-Spigot, Geyser]
 commands:
   vac:
-    description: Manage VAntiCheat configuration and trusted players
+    description: VAntiCheat administration, health status, and client detection
     usage: /vac help
   vacprobe:
     description: Run the configured client probe against a player
@@ -18,7 +18,14 @@ commands:
     permission: vanticheat.probe
 permissions:
   vanticheat.admin:
-    description: Manage VAntiCheat trusted players
+    description: Access VAntiCheat administration commands
+    default: op
+  vanticheat.status:
+    description: View VAntiCheat runtime status
+    default: op
+  vanticheat.reload:
+    description: Reload VAntiCheat configuration
     default: op
   vanticheat.probe:
+    description: Run client probe scans
     default: op

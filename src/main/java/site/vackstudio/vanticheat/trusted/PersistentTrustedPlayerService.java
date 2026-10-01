@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +39,8 @@ public final class PersistentTrustedPlayerService implements TrustedPlayerServic
     }
 
     @Override public synchronized boolean remove(UUID id) { return players.remove(id) != null; }
+
+    @Override public int size() { return players.size(); }
 
     @Override
     public List<TrustedPlayer> list() {
@@ -97,7 +98,10 @@ public final class PersistentTrustedPlayerService implements TrustedPlayerServic
                 if (pair[0].trim().equals("name")) name = pair[1].trim();
                 if (pair[0].trim().equals("added-at")) {
                     try { addedAt = Instant.parse(pair[1].trim()); }
-                    catch (RuntimeException ignored) { }
+                    catch (RuntimeException ignored) {
+                        // A malformed timestamp is optional metadata; retain the valid UUID/name entry.
+                        addedAt = null;
+                    }
                 }
             }
         }

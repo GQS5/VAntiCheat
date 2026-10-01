@@ -9,6 +9,7 @@ public interface TrustedPlayerService {
         @Override public boolean add(UUID id, String name) { return false; }
         @Override public boolean remove(UUID id) { return false; }
         @Override public List<TrustedPlayer> list() { return List.of(); }
+        @Override public int size() { return 0; }
         @Override public void load() { }
         @Override public void save() { }
     };
@@ -17,6 +18,7 @@ public interface TrustedPlayerService {
     boolean add(UUID id, String name);
     boolean remove(UUID id);
     List<TrustedPlayer> list();
+    default int size() { return list().size(); }
     void load();
     void save();
 }

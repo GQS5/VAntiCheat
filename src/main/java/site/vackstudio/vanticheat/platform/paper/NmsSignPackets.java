@@ -7,18 +7,20 @@ import org.bukkit.plugin.Plugin;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /** Minecraft 1.21.11 packet bridge. This class is intentionally version-specific. */
 final class NmsSignPackets {
     private static final String VERSION = "1.21.11";
     private static final Class<?> BLOCK_POS;
     private static final Constructor<?> BLOCK_POS_CONSTRUCTOR;
-    private static final Class<?> BLOCK_ENTITY_PACKET;
     private static final Method BLOCK_ENTITY_CREATE;
     private static final Constructor<?> OPEN_SIGN_CONSTRUCTOR;
     private static final Method GET_HANDLE;
     private static final Field CONNECTION;
     private static final Method SEND;
+    private static final ConcurrentMap<Class<?>, Method> BLOCK_ENTITY_METHODS = new ConcurrentHashMap<>();
 
     static {
         Class<?> blockPos = null;
@@ -58,7 +60,6 @@ final class NmsSignPackets {
         }
         BLOCK_POS = blockPos;
         BLOCK_POS_CONSTRUCTOR = blockPosConstructor;
-        BLOCK_ENTITY_PACKET = blockEntityPacket;
         BLOCK_ENTITY_CREATE = blockEntityCreate;
         OPEN_SIGN_CONSTRUCTOR = openSignConstructor;
         GET_HANDLE = getHandle;
@@ -68,15 +69,26 @@ final class NmsSignPackets {
 
     private NmsSignPackets() { }
 
-    static boolean sendBlockEntityPacket(Player player, Location location, Plugin plugin) {
+    /** Reads the block entity only on the owning region scheduler. */
+    static Object createBlockEntityPacket(Location location, Plugin plugin) {
         try {
-            Object handle = GET_HANDLE.invoke(player);
             Object world = location.getWorld().getClass().getMethod("getHandle").invoke(location.getWorld());
             Object blockPos = blockPos(location);
             Method getBlockEntity = findBlockEntityMethod(world.getClass());
             Object blockEntity = getBlockEntity.invoke(world, blockPos);
             if (blockEntity == null) throw new IllegalStateException("sign block entity missing");
-            Object packet = BLOCK_ENTITY_CREATE.invoke(null, blockEntity);
+            return BLOCK_ENTITY_CREATE.invoke(null, blockEntity);
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            plugin.getLogger().warning("Client probe block entity capture failed for " + VERSION + ": "
+                    + exception.getClass().getSimpleName() + ": " + exception.getMessage());
+            return null;
+        }
+    }
+
+    /** Sends a pre-captured packet on the owning player's entity scheduler. */
+    static boolean sendBlockEntityPacket(Player player, Object packet, Plugin plugin) {
+        try {
+            Object handle = GET_HANDLE.invoke(player);
             SEND.invoke(CONNECTION.get(handle), packet);
             return true;
         } catch (ReflectiveOperationException | RuntimeException exception) {
@@ -104,9 +116,14 @@ final class NmsSignPackets {
     }
 
     private static Method findBlockEntityMethod(Class<?> worldType) throws NoSuchMethodException {
+        Method cached = BLOCK_ENTITY_METHODS.get(worldType);
+        if (cached != null) return cached;
         for (Method method : worldType.getMethods()) {
             if (method.getName().equals("getBlockEntity") && method.getParameterCount() == 1
-                    && method.getParameterTypes()[0].isAssignableFrom(BLOCK_POS)) return method;
+                    && method.getParameterTypes()[0].isAssignableFrom(BLOCK_POS)) {
+                Method previous = BLOCK_ENTITY_METHODS.putIfAbsent(worldType, method);
+                return previous == null ? method : previous;
+            }
         }
         throw new NoSuchMethodException("getBlockEntity(BlockPos)");
     }

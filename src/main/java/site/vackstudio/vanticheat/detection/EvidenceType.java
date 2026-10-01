@@ -4,5 +4,6 @@ public enum EvidenceType {
     OBSERVATION,
     CORRELATION,
     SYSTEM,
-    ERROR
+    ERROR,
+    UNSUPPORTED
 }

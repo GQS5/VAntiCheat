@@ -2,6 +2,7 @@ package site.vackstudio.vanticheat.config;
 
 import site.vackstudio.vanticheat.detection.probe.ProbeDefinition;
 import site.vackstudio.vanticheat.detection.probe.ProbeMode;
+import site.vackstudio.vanticheat.detection.probe.ProbeRegistry;
 import site.vackstudio.vanticheat.detection.probe.ProbeVerificationStatus;
 
 import java.io.IOException;
@@ -20,16 +21,36 @@ public record ClientDetectionConfig(
         boolean doubleCheck,
         long timeoutTicks,
         long betweenProbeTicks,
-        List<ProbeDefinition> probes,
+        ProbeRegistry registry,
         boolean autoCheckOnJoin,
         long autoCheckDelayTicks,
         boolean firstJoinOnly,
-        List<String> autoProbeIds,
-        int maxConcurrentAutoChecks) {
+        int maxConcurrentAutoChecks,
+        long shortTimeoutTicks,
+        int shortTimeoutAfterConsecutiveTimeouts) {
     public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
                                  long betweenProbeTicks, List<ProbeDefinition> probes) {
-        this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, probes,
-                false, 1, false, probes.stream().map(ProbeDefinition::id).toList(), 32);
+        this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, ProbeRegistry.of(probes),
+                false, 1, false, 32, timeoutTicks, 2);
+    }
+
+    public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
+                                 long betweenProbeTicks, List<ProbeDefinition> probes,
+                                 boolean autoCheckOnJoin, long autoCheckDelayTicks,
+                                 boolean firstJoinOnly, List<String> ignoredAutoProbeIds,
+                                 int maxConcurrentAutoChecks) {
+        this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, ProbeRegistry.of(probes),
+                autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly, maxConcurrentAutoChecks,
+                timeoutTicks, 2);
+    }
+
+    public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
+                                 long betweenProbeTicks, ProbeRegistry registry,
+                                 boolean autoCheckOnJoin, long autoCheckDelayTicks,
+                                 boolean firstJoinOnly, int maxConcurrentAutoChecks) {
+        this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, registry,
+                autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly, maxConcurrentAutoChecks,
+                timeoutTicks, 2);
     }
 
     public ClientDetectionConfig {
@@ -37,8 +58,11 @@ public record ClientDetectionConfig(
         if (betweenProbeTicks < 0) throw new IllegalArgumentException("betweenProbeTicks cannot be negative");
         if (autoCheckDelayTicks < 0) throw new IllegalArgumentException("autoCheckDelayTicks cannot be negative");
         if (maxConcurrentAutoChecks < 1) throw new IllegalArgumentException("maxConcurrentAutoChecks must be positive");
-        probes = List.copyOf(probes);
-        autoProbeIds = List.copyOf(autoProbeIds);
+        if (shortTimeoutTicks < 1) throw new IllegalArgumentException("shortTimeoutTicks must be positive");
+        if (shortTimeoutAfterConsecutiveTimeouts < 1) {
+            throw new IllegalArgumentException("shortTimeoutAfterConsecutiveTimeouts must be positive");
+        }
+        if (registry == null) throw new IllegalArgumentException("registry cannot be null");
     }
 
     public static ClientDetectionConfig disabled() {
@@ -50,7 +74,9 @@ public record ClientDetectionConfig(
         Path file = dataDirectory.resolve("client-detection.yml");
         if (!Files.isRegularFile(file)) return disabled();
         try {
-            return parse(Files.readString(file));
+            ClientDetectionConfig config = parse(Files.readString(file));
+            config.warnings().forEach(logger::warning);
+            return config;
         } catch (IOException | RuntimeException exception) {
             logger.log(Level.WARNING, "Unable to load client-detection.yml; clientDetection=UNAVAILABLE reason=INVALID_CONFIG\n"
                     + exception.getMessage());
@@ -78,18 +104,22 @@ public record ClientDetectionConfig(
         boolean enabled = false;
         boolean doubleCheck = true;
         long timeoutTicks = 40;
-        long betweenProbeTicks = 1;
+        long shortTimeoutTicks = -1;
+        int shortTimeoutAfterConsecutiveTimeouts = 2;
+        long betweenProbeTicks = 0;
         boolean autoCheckOnJoin = false;
         long autoCheckDelayTicks = 1;
         boolean firstJoinOnly = false;
         int maxConcurrentAutoChecks = 32;
+        boolean sawRoot = false;
         boolean inRoot = false;
         boolean inProbes = false;
         boolean inAutoCheck = false;
         boolean inAutoProbeIds = false;
+        boolean legacyAutoProbeIdsConfigured = false;
         String currentId = null;
         Map<String, Map<String, String>> rawProbes = new LinkedHashMap<>();
-        List<String> autoProbeIds = new ArrayList<>();
+        List<String> legacyAutoProbeIds = new java.util.ArrayList<>();
 
         for (String rawLine : content.split("\\R")) {
             String line = rawLine.stripTrailing();
@@ -98,6 +128,7 @@ public record ClientDetectionConfig(
             String trimmed = line.trim();
             if (indent == 0) {
                 inRoot = trimmed.equals("client-detection:");
+                sawRoot |= inRoot;
                 inProbes = false;
                 inAutoCheck = false;
                 inAutoProbeIds = false;
@@ -128,6 +159,9 @@ public record ClientDetectionConfig(
                     case "enabled" -> enabled = bool(pair[1], "client-detection.enabled");
                     case "double-check" -> doubleCheck = bool(pair[1], "client-detection.double-check");
                     case "timeout-ticks" -> timeoutTicks = Long.parseLong(unquote(pair[1]));
+                    case "short-timeout-ticks" -> shortTimeoutTicks = Long.parseLong(unquote(pair[1]));
+                    case "short-timeout-after-consecutive-timeouts" ->
+                            shortTimeoutAfterConsecutiveTimeouts = Integer.parseInt(unquote(pair[1]));
                     case "between-probe-ticks" -> betweenProbeTicks = Long.parseLong(unquote(pair[1]));
                     default -> { }
                 }
@@ -136,10 +170,11 @@ public record ClientDetectionConfig(
             if (inAutoCheck) {
                 if (indent == 4 && trimmed.equals("probes:")) {
                     inAutoProbeIds = true;
+                    legacyAutoProbeIdsConfigured = true;
                     continue;
                 }
                 if (indent == 4 && trimmed.startsWith("- ")) {
-                    autoProbeIds.add(unquote(trimmed.substring(2).trim()));
+                    legacyAutoProbeIds.add(unquote(trimmed.substring(2).trim()));
                     continue;
                 }
                 if (indent == 4) {
@@ -155,7 +190,7 @@ public record ClientDetectionConfig(
                     continue;
                 }
                 if (inAutoProbeIds && indent >= 6 && trimmed.startsWith("- ")) {
-                    autoProbeIds.add(unquote(trimmed.substring(2).trim()));
+                    legacyAutoProbeIds.add(unquote(trimmed.substring(2).trim()));
                 }
                 continue;
             }
@@ -174,22 +209,55 @@ public record ClientDetectionConfig(
             }
         }
 
+        if (!sawRoot) {
+            throw new IllegalArgumentException("file=client-detection.yml\npath=client-detection\n"
+                    + "expected=object\nactual=missing");
+        }
+
         List<ProbeDefinition> probes = new ArrayList<>();
         for (Map.Entry<String, Map<String, String>> entry : rawProbes.entrySet()) {
             Map<String, String> values = entry.getValue();
-            String displayName = unquote(required(values, "display-name"));
-            String key = unquote(required(values, "key"));
-            ProbeMode mode = ProbeMode.valueOf(unquote(required(values, "mode")).toUpperCase(Locale.ROOT));
+            String path = "client-detection.probes." + entry.getKey();
+            if (!entry.getKey().matches("[a-z0-9][a-z0-9._-]*")) {
+                throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                        + "\nexpected=safe probe id\nactual=" + entry.getKey());
+            }
+            String displayName = unquote(required(values, "display-name", path + ".display-name"));
+            String key = unquote(required(values, "key", path + ".key"));
+            if (displayName.isBlank()) {
+                throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                        + ".display-name\nexpected=non-empty value\nactual=blank");
+            }
+            if (key.isBlank()) {
+                throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                        + ".key\nexpected=non-empty value\nactual=blank");
+            }
+            ProbeMode mode = enumValue(values, "mode", ProbeMode.class, path + ".mode");
             boolean probeEnabled = bool(values.getOrDefault("enabled", "true"),
-                    "client-detection.probes." + entry.getKey() + ".enabled");
+                    path + ".enabled");
+            boolean manual = bool(values.getOrDefault("manual", "true"), path + ".manual");
+            boolean automatic = values.containsKey("automatic")
+                    ? bool(values.get("automatic"), path + ".automatic")
+                    : (!legacyAutoProbeIdsConfigured || legacyAutoProbeIds.contains(entry.getKey()));
             String fallback = unquote(values.getOrDefault("fallback", ""));
-            ProbeVerificationStatus status = ProbeVerificationStatus.valueOf(
-                    unquote(values.getOrDefault("verification", "UNVERIFIED")).toUpperCase(Locale.ROOT));
+            ProbeVerificationStatus status = enumValue(values, "verification", ProbeVerificationStatus.class,
+                    path + ".verification", "UNVERIFIED");
+            String category = unquote(values.getOrDefault("category", "general"));
+            String source = unquote(values.getOrDefault("source", ""));
+            String notes = unquote(values.getOrDefault("notes", ""));
+            if (status == ProbeVerificationStatus.VERIFIED && (notes.isBlank() || source.isBlank())) {
+                throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                        + ".verification\nexpected=VERIFIED with non-blank notes and source\nactual=missing evidence metadata");
+            }
+            String expectedResponse = unquote(values.getOrDefault("expected-response", ""));
             probes.add(new ProbeDefinition(entry.getKey(), displayName, key, mode,
-                    fallback, probeEnabled, status));
+                    fallback, probeEnabled, manual, automatic, status, category, source, notes,
+                    expectedResponse));
         }
-        return new ClientDetectionConfig(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, probes,
-                autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly, autoProbeIds, maxConcurrentAutoChecks);
+        if (shortTimeoutTicks < 0) shortTimeoutTicks = timeoutTicks;
+        return new ClientDetectionConfig(enabled, doubleCheck, timeoutTicks, betweenProbeTicks,
+                ProbeRegistry.of(probes), autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly,
+                maxConcurrentAutoChecks, shortTimeoutTicks, shortTimeoutAfterConsecutiveTimeouts);
     }
 
     private static String[] pair(String value) {
@@ -199,9 +267,34 @@ public record ClientDetectionConfig(
     }
 
     private static String required(Map<String, String> values, String key) {
+        return required(values, key, key);
+    }
+
+    private static String required(Map<String, String> values, String key, String path) {
         String value = values.get(key);
-        if (value == null || value.isBlank()) throw new IllegalArgumentException("Missing " + key);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                    + "\nexpected=non-empty value\nactual=missing");
+        }
         return value;
+    }
+
+    private static <E extends Enum<E>> E enumValue(Map<String, String> values, String key,
+                                                    Class<E> type, String path) {
+        return enumValue(values, key, type, path, null);
+    }
+
+    private static <E extends Enum<E>> E enumValue(Map<String, String> values, String key,
+                                                    Class<E> type, String path, String defaultValue) {
+        String value = values.getOrDefault(key, defaultValue);
+        if (value == null || value.isBlank()) throw new IllegalArgumentException("file=client-detection.yml\npath="
+                + path + "\nexpected=" + type.getSimpleName() + "\nactual=missing");
+        try {
+            return Enum.valueOf(type, unquote(value).toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                    + "\nexpected=" + type.getSimpleName() + "\nactual=" + unquote(value), exception);
+        }
     }
 
     private static boolean bool(String value, String path) {
@@ -241,8 +334,39 @@ public record ClientDetectionConfig(
     }
 
     public List<ProbeDefinition> automaticProbes() {
-        return probes.stream()
-                .filter(ProbeDefinition::enabled)
+        return registry.automatic();
+    }
+
+    /**
+     * Deadline for the next probe batch given how many consecutive whole batches
+     * in the current pass already timed out on the full deadline. The first
+     * batches of a pass always use the full {@code timeoutTicks}; only a client
+     * that stayed silent across {@code shortTimeoutAfterConsecutiveTimeouts}
+     * whole windows is probed with the shorter deadline. Every probe still gets
+     * its own sign editor interaction and a shortened wait is still recorded as
+     * TIMEOUT, never as CLEAN, so result semantics are unchanged. Responsive
+     * clients answer in well under a second and never reach the short deadline.
+     * A {@code shortTimeoutTicks} greater than or equal to {@code timeoutTicks}
+     * disables adaptation.
+     */
+    public long batchTimeoutTicks(int consecutiveTimeoutBatches) {
+        if (consecutiveTimeoutBatches >= shortTimeoutAfterConsecutiveTimeouts
+                && shortTimeoutTicks < timeoutTicks) {
+            return shortTimeoutTicks;
+        }
+        return timeoutTicks;
+    }
+
+    public List<ProbeDefinition> probes() { return registry.all(); }
+    public List<ProbeDefinition> manualProbes() { return registry.manual(); }
+    public List<String> autoProbeIds() { return registry.automatic().stream().map(ProbeDefinition::id).toList(); }
+    public ProbeRegistry probeRegistry() { return registry; }
+
+    public List<String> warnings() {
+        return registry.all().stream()
+                .filter(probe -> !probe.manual() && !probe.automatic())
+                .map(probe -> "client-detection.probes." + probe.id()
+                        + " has manual=false and automatic=false; it will never run")
                 .toList();
     }
 }

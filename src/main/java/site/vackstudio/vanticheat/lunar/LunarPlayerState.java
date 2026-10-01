@@ -4,5 +4,6 @@ package site.vackstudio.vanticheat.lunar;
 public enum LunarPlayerState {
     UNKNOWN,
     REGISTERED,
-    MINIMAP_DISABLED
+    MINIMAP_DISABLED,
+    FAILED
 }

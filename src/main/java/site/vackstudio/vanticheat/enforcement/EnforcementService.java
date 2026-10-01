@@ -13,16 +13,26 @@ import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.logging.Logger;
 
 public final class EnforcementService {
+    /** Test-visible bound for the completed-key cache. */
+    public static final int MAX_RETAINED_ENFORCEMENT_KEYS = 4096;
+    static final long ENFORCEMENT_KEY_TTL_NANOS = TimeUnit.MINUTES.toNanos(15);
     private final EnforcementPolicy policy;
     private final EnforcementExecutor executor;
     private final String kickMessage;
     private final Logger logger;
     private final TrustedPlayerService trustedPlayers;
-    private final Set<String> handled = ConcurrentHashMap.newKeySet();
+    private final LongSupplier nanoTime;
+    private final Object enforcementGate = new Object();
+    private final Set<String> inFlight = new HashSet<>();
+    private final LinkedHashMap<String, Long> recentlyHandled = new LinkedHashMap<>();
+    private enum Claim { CLAIMED, DUPLICATE, CAPACITY }
 
     public EnforcementService(EnforcementPolicy policy, EnforcementExecutor executor,
                                String kickMessage, Logger logger) {
@@ -31,11 +41,17 @@ public final class EnforcementService {
 
     public EnforcementService(EnforcementPolicy policy, EnforcementExecutor executor,
                                String kickMessage, Logger logger, TrustedPlayerService trustedPlayers) {
+        this(policy, executor, kickMessage, logger, trustedPlayers, System::nanoTime);
+    }
+
+    EnforcementService(EnforcementPolicy policy, EnforcementExecutor executor, String kickMessage,
+                       Logger logger, TrustedPlayerService trustedPlayers, LongSupplier nanoTime) {
         this.policy = Objects.requireNonNull(policy, "policy");
         this.executor = Objects.requireNonNull(executor, "executor");
         this.kickMessage = Objects.requireNonNull(kickMessage, "kickMessage");
         this.logger = Objects.requireNonNull(logger, "logger");
         this.trustedPlayers = Objects.requireNonNull(trustedPlayers, "trustedPlayers");
+        this.nanoTime = Objects.requireNonNull(nanoTime, "nanoTime");
     }
 
     public EnforcementOutcome enforce(EnforcementTarget target, DetectionResult result) {
@@ -50,13 +66,19 @@ public final class EnforcementService {
             reason = "trusted player bypass";
         } else {
             String enforcementKey = key(target, result);
-            if (action == EnforcementAction.KICK && !handled.add(enforcementKey)) {
+            Claim claim = action == EnforcementAction.KICK ? claimEnforcement(enforcementKey) : Claim.CLAIMED;
+            if (action == EnforcementAction.KICK && claim != Claim.CLAIMED) {
                 action = EnforcementAction.NONE;
-                reason = "enforcement already applied";
+                reason = claim == Claim.DUPLICATE ? "enforcement already applied"
+                        : "enforcement deduplication capacity reached";
             } else if (action == EnforcementAction.KICK) {
-                if (!target.online() || !executor.kick(target, kickMessage(result))) {
-                    action = EnforcementAction.NONE;
-                    reason = "target offline or kick unavailable";
+                try {
+                    if (!target.online() || !executor.kick(target, kickMessage(result))) {
+                        action = EnforcementAction.NONE;
+                        reason = "target offline or kick unavailable";
+                    }
+                } finally {
+                    completeEnforcement(enforcementKey);
                 }
             }
         }
@@ -83,6 +105,46 @@ public final class EnforcementService {
 
     public boolean isTrusted(UUID playerId) {
         return trustedPlayers.isTrusted(Objects.requireNonNull(playerId, "playerId"));
+    }
+
+    private Claim claimEnforcement(String key) {
+        synchronized (enforcementGate) {
+            expireOldKeys(nanoTime.getAsLong());
+            if (inFlight.contains(key) || recentlyHandled.containsKey(key)) return Claim.DUPLICATE;
+            if (inFlight.size() + recentlyHandled.size() >= MAX_RETAINED_ENFORCEMENT_KEYS) {
+                return Claim.CAPACITY;
+            }
+            inFlight.add(key);
+            return Claim.CLAIMED;
+        }
+    }
+
+    private void completeEnforcement(String key) {
+        synchronized (enforcementGate) {
+            inFlight.remove(key);
+            long now = nanoTime.getAsLong();
+            recentlyHandled.put(key, now);
+            expireOldKeys(now);
+        }
+    }
+
+    private void expireOldKeys(long now) {
+        var iterator = recentlyHandled.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Long> entry = iterator.next();
+            if (now - entry.getValue() < ENFORCEMENT_KEY_TTL_NANOS) break;
+            iterator.remove();
+        }
+    }
+
+    /** Test-visible count of retained completed enforcement keys. */
+    public int retainedEnforcementKeyCount() {
+        synchronized (enforcementGate) { return recentlyHandled.size(); }
+    }
+
+    /** Test-visible count of in-flight enforcement reservations. */
+    public int inFlightEnforcementCount() {
+        synchronized (enforcementGate) { return inFlight.size(); }
     }
 
     private static String key(EnforcementTarget target, DetectionResult result) {

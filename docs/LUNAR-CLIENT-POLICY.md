@@ -26,34 +26,50 @@ unavailable and VAntiCheat otherwise operates normally.
 The `apollo-api` dependency is only the compile-time API; it is not the Apollo
 server plugin and does not provide the Apollo server runtime.
 
-Architecture boundary: all Apollo types live in
-`platform/lunar/ApolloLunarBridge`, loaded only when the Apollo API is
-present and functional. `lunar/*` (service, config, state) never links
-against Apollo classes, so a missing Apollo installation cannot crash the
-plugin.
+Architecture boundary: the main plugin reflectively loads
+`platform/lunar/ApolloLunarBridge`; Apollo is a `provided` compile-time API and
+the server plugin remains optional (`softdepend`). The bridge is instantiated
+only if its API classes can be resolved. `lunar/*` never links against Apollo
+classes. API present-but-uninitialized is reported as `NOT_READY`, separately
+from missing API (`NOT_PRESENT`).
 
 Lifecycle (per official docs — never `PlayerJoinEvent`):
 
 ```text
 ApolloRegisterPlayerEvent
-  -> LunarClientService.handleRegistration(UUID)
-  -> hasSupport(UUID) authoritative check (no brand guessing, no sign probes)
-  -> getPlayer(UUID) ApolloPlayer lookup
-  -> ModSettingModule.getOptions().set(player, ModMinimap.ENABLED, false)
-  -> player stays online
+  -> bridge captures UUID/name + opaque player handle
+  -> LunarClientService queues work on that player's entity scheduler
+  -> readiness + hasSupport(UUID) check in entity context
+  -> ApolloPlayer lookup and exact underlying-player identity check
+  -> ModSettingModule status lookup for ModMinimap.ENABLED
+  -> if not already false: ModSettingModule options set false
+  -> player stays online; Apollo result remains separate from probe result
 ```
 
-Reconnect re-registers through the same path; per-UUID state is cleared on
-Apollo unregister and on Bukkit quit, so no stale state survives a session.
-Only `ModMinimap.ENABLED` is ever touched — no other Lunar mod is affected.
+The bridge caches Apollo's player manager and `ModSettingModule` after readiness;
+no per-player reflection is used. An already-disabled setting is not written
+again. The service retains only UUID state and a weak player reference for
+pending identity checks. Reconnect creates a new ticket; quit/unregister remove
+only a matching connection, and shutdown cancels pending entity tasks before
+unregistering Apollo callbacks. Apollo exceptions become a separate `FAILED`
+integration/action state and do not enter the probe evaluator.
+Apollo plugin disable cancels pending work and unregisters its event handlers;
+an enable event reuses the same bridge and reattaches callbacks without
+re-resolving API classes.
+
+The active `/vac reload` path replaces only the immutable client-probe registry;
+it does not restart the Lunar service or resolve/reload Apollo objects. If client
+detection was unavailable at startup, `/vac reload` is rejected rather than
+restarting the plugin and disturbing optional integrations; fix the startup
+configuration and restart VAntiCheat.
 
 ## Paper/Folia
 
-Apollo callbacks in this integration touch UUIDs and Apollo data only. No
-Bukkit player, location, or entity objects cross the bridge, no world/region
-access occurs, and Apollo manages its own packet threading — therefore the
-`BukkitApollo`/`FoliaApollo` helpers are unnecessary here by construction.
-This was a deliberate minimal-footprint decision, not an omission.
+The bridge carries the registration's opaque player handle but does not access
+it as a Bukkit player. `LunarClientService` routes player-specific Apollo reads
+and the setting mutation through the platform `Scheduler.runAtEntity` path.
+That routes to Paper's main scheduler or Folia's entity scheduler, and avoids
+world/region access and Bukkit-only scheduler calls.
 
 ## Configuration
 
@@ -80,15 +96,18 @@ lunar:
 /vac lunar <player>   (permission: vanticheat.admin)
 ```
 
-Reports `Lunar support: YES/NO`, `Minimap policy: ENABLED/DISABLED`, and the
-known Apollo state (`UNKNOWN`, `REGISTERED`, `MINIMAP_DISABLED`). Diagnostic
-only; exposes no protocol internals.
+Reports integration readiness (`AVAILABLE`, `NOT_PRESENT`, `NOT_READY`,
+`FAILED`, or `DISABLED`), Lunar support (`YES`, `NO`, or `UNKNOWN`), the minimap policy, per-player action
+state (`UNKNOWN`, `REGISTERED`, `MINIMAP_DISABLED`, `FAILED`), and last action.
+`/vac status` includes integration readiness and last action. Diagnostics
+expose no protocol internals.
 
 ## Validation Status
 
-- Unit/integration-boundary tests: PASS (13 new Lunar tests; full suite green).
-- Runtime startup diagnostics report `DISABLED`, `READY`, or
-  `UNAVAILABLE reason=APOLLO_NOT_PRESENT` once at startup.
+- Unit/stub regression tests cover absent, ready, not-ready, idempotent, failed,
+  reconnect, shutdown, and entity-scheduler paths.
+- Startup diagnostics report the explicit integration state once; detailed
+  API failures are logged at debug level.
 - Disposable Folia runtime: Apollo-Folia `1.2.9` loaded successfully on Folia
   `1.21.11-7-ver` with Java `26.0.2.1`; VAntiCheat reported `READY`.
 - Real Lunar Client session: **UNVERIFIED** — requires a live Lunar client to

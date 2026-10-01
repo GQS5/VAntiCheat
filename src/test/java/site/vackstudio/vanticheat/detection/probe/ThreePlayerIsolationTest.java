@@ -61,6 +61,8 @@ class ThreePlayerIsolationTest {
             assertTrue(result.status() == DetectionStatus.CLEAN
                     || result.status() == DetectionStatus.DETECTED
                     || result.status() == DetectionStatus.PROTECTED
+                    || result.status() == DetectionStatus.TIMEOUT
+                    || result.status() == DetectionStatus.UNSUPPORTED
                     || result.status() == DetectionStatus.ERROR
                     || result.status() == DetectionStatus.SKIPPED
                     || result.status() == DetectionStatus.UNCERTAIN);

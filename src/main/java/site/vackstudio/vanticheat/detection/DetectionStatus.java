@@ -8,5 +8,7 @@ public enum DetectionStatus {
     UNCERTAIN,
     PROTECTED,
     SKIPPED,
-    ERROR
+    ERROR,
+    TIMEOUT,
+    UNSUPPORTED
 }

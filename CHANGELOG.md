@@ -1,5 +1,104 @@
 # Changelog
 
+## 0.2.0 - Release candidate
+
+Scope note: this release consolidates the P14-P31 rework into one artifact. It is
+internally consistent, tested, and packaged for Paper and Folia 1.21.11 on
+Java 21, but it is not a claim of complete live cheat-client coverage.
+
+### Breaking changes
+
+- Behavior detection removed: `behavior-detection.yml`, the behavior module
+  API, and behavior detection categories no longer exist. Existing
+  `behavior-detection.yml` files are ignored, not loaded. Detection is now
+  exclusively configuration-driven client/mod identity.
+- A probe with `verification: VERIFIED` and no `notes`/`source` is now rejected
+  at load and reload time instead of being accepted silently.
+- Xaero's World Map and Litematica probe identifiers corrected to keys that
+  exist in the shipped mod artifacts.
+
+### Added
+
+- Universal configuration-driven `ProbeRegistry` (38 probe definitions; adding
+  a probe requires no Java changes).
+- Automatic join detection with per-player operation ownership, coordinator
+  capacity limits, trusted-player skip, reload snapshot, and exactly-once
+  enforcement.
+- Manual and admin surface: `/vac status [verbose]`, `/vac detections`,
+  `/vac reload`, `/vac check <player> [probe-ids]`, `/vac probes`,
+  `/vac probe <probe-id>`, `/vac lunar <player>`, `/vac trust ...`,
+  `/vacprobe <player>`.
+- Per-probe status reporting (`VERIFIED` / `UNVERIFIED` / `DISABLED`) with
+  notes and source in `/vac probes` and `/vac probe <id>`.
+- Consecutive-silence adaptive timeout (`short-timeout-ticks`,
+  `short-timeout-after-consecutive-timeouts`) that shortens silent-client wall
+  time without changing result semantics.
+- Release notes and catalog verification guardrails.
+
+### Changed
+
+- Result semantics are explicit and frozen: `CLEAN`, `DETECTED`, `TIMEOUT`,
+  `PROTECTED`, `ERROR`, `UNSUPPORTED`, `SKIPPED`, `UNCERTAIN`. A timeout is
+  never clean, an error is never a detection, weak evidence is never
+  actionable.
+- Bedrock players are excluded before any probe session, transport call, sign,
+  editor, evidence, or enforcement. `UNKNOWN` fails closed; `NO_PROVIDER`
+  applies the Java-eligible policy.
+- Lunar is an allow-policy integration through the optional Apollo plugin;
+  players are never kicked or classified as cheats for using it.
+- Sign-probe scanning is sequential by design (one open sign editor per
+  player); batches are never overlapped.
+
+### Fixed
+
+- Concurrent cleanup race in the sign-probe transport: the temporary probe sign
+  and barrier could be left in the world while the operation terminalized
+  normally. Paper stores a `Location`'s world in a `WeakReference`, and cleanup
+  re-derived its region target from that `Location` after terminalization, so a
+  cleared world reference aborted the restore. The region target is now captured
+  once during placement and reused for cleanup.
+
+### Probe catalog
+
+```text
+38 total
+3 VERIFIED    meteor-client, apple-skin, jade-config-screen
+33 UNVERIFIED
+2 DISABLED    xaeros-minimap, itemscroller
+```
+
+Live-verified scope: `meteor-client` (Minecraft 1.21.11 / Meteor Client
+1.21.11-86, manual and automatic), `apple-skin` (Minecraft 1.21.11 / AppleSkin
+3.0.8, manual), `jade-config-screen` (Minecraft 1.21.11 / Jade 21.1.6,
+manual). A `VERIFIED` probe is verified only for the recorded versions.
+
+### Performance (environment-specific measurements)
+
+- Responsive real-client scans: ~0.95-1.8 s.
+- Silent automatic 28-probe scan: ~8 s after the adaptive timeout.
+- Silent manual 37-probe scan: ~9.5-10 s after the adaptive timeout.
+
+Silent clients remain slower because each probe batch has a bounded response
+deadline and sign editors are intentionally never overlapped.
+
+### Known limitations
+
+- Only 3 of 38 probes have real-client verification evidence; 33 remain
+  `UNVERIFIED` because no real client was available, and 2 are `DISABLED`.
+- Bedrock isolation is enforced in code and unit-tested but was not
+  live-validated against a real Bedrock client.
+- The Lunar integration was verified as available/ready with Apollo present;
+  no real Lunar client was tested.
+- EMI, LiquidBounce, Wurst, BleachHack, and Aristois were not obtainable in
+  the isolated environment, so their probes remain unverified.
+- A planned further real-client expansion (P30) was intentionally skipped.
+
+### Verification
+
+- `mvn clean test` — 224 tests passing, stable across 6 complete runs.
+- Release asset `vanticheat-0.2.0.jar`
+  sha256 `fdc731b7863f790ec316708dc29be07e27bf95abb85f1e924c8c3e0bcf3b8f73`.
+
 ## 0.1.13 - Trusted player probe exclusion
 
 - Skip automatic and manual client probes for trusted players.

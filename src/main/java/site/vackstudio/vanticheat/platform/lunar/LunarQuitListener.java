@@ -22,6 +22,6 @@ public final class LunarQuitListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        lunar.handleQuit(event.getPlayer().getUniqueId());
+        lunar.handleQuit(event.getPlayer().getUniqueId(), event.getPlayer());
     }
 }

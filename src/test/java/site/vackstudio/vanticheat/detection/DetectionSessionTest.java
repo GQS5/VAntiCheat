@@ -37,7 +37,7 @@ class DetectionSessionTest {
         DetectionSession timedOut = session();
         timedOut.start();
         timedOut.timeout("deadline exceeded");
-        assertEquals(DetectionStatus.ERROR, timedOut.result().status());
+        assertEquals(DetectionStatus.TIMEOUT, timedOut.result().status());
 
         DetectionSession failed = session();
         failed.start();
@@ -54,6 +54,18 @@ class DetectionSessionTest {
         session.cancel("done");
         assertThrows(IllegalStateException.class, () -> session.addEvidence(
                 new Evidence(EvidenceType.SYSTEM, "test", Instant.now(), Map.of())));
+    }
+
+    @Test
+    void cancellationCannotInterruptCompletionInProgress() {
+        DetectionSession session = session();
+        session.start();
+        session.beginCompletion();
+
+        session.cancel("player disconnected");
+        session.complete(DetectionResult.of(DetectionStatus.CLEAN, "response received"));
+
+        assertEquals(DetectionSessionState.COMPLETED, session.state());
     }
 
     private static DetectionSession session() {

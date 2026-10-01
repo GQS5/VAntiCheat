@@ -49,7 +49,7 @@ class MeteorProbeIntegrityTest {
         assertTrue(probe.enabled());
         assertEquals(ProbeMode.METEOR, probe.mode());
         assertEquals("key.meteor-client.open-gui", probe.key());
-        assertEquals(ProbeVerificationStatus.UNVERIFIED, probe.verificationStatus());
+        assertEquals(ProbeVerificationStatus.VERIFIED, probe.verificationStatus());
     }
 
     @Test
@@ -87,7 +87,7 @@ class MeteorProbeIntegrityTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(DetectionStatus.PROTECTED, CheckHacksResponseEvaluator.evaluate(
+        assertEquals(DetectionStatus.TIMEOUT, CheckHacksResponseEvaluator.evaluate(
                 meteor, "anything", false, ProbeResponse.Outcome.TIMEOUT));
         assertEquals(DetectionStatus.ERROR, CheckHacksResponseEvaluator.evaluate(
                 meteor, "anything", false, ProbeResponse.Outcome.DISCONNECTED));

@@ -1,192 +1,410 @@
-# CheckHacks 1.3.1-derived probe definitions.
-# All entries are migrated/configured and currently marked UNVERIFIED.
+# Client/mod identity probes. UNVERIFIED means the exact probe has not been
+# validated against a live client. New catalog entries below are manual-only.
 client-detection:
   enabled: true
   double-check: true
-  # 40 ticks is a 2 second failure deadline; live 1.21.11 responses arrive sooner.
+  # 40 ticks is the conservative response deadline.
   timeout-ticks: 40
-  # One tick preserves client/server ordering without adding visible idle time.
-  between-probe-ticks: 1
-  # Every probe with enabled: true is checked automatically.
+  # Consecutive-silence backoff: after this many back-to-back batches in one pass
+  # each time out on the full deadline, later batches use short-timeout-ticks.
+  # Every probe still gets its own sign editor interaction and a shortened wait
+  # is still recorded as TIMEOUT (never CLEAN), so result semantics are unchanged;
+  # only silent-client wall time shrinks. Any response resets the streak, and
+  # double-check confirmation passes always start with the full deadline, so
+  # responsive clients (which answer each editor promptly) never reach the short
+  # deadline. Silent/non-responsive clients still take several seconds for a large
+  # probe set because the protocol intentionally avoids overlapping sign editors.
+  # short-timeout-ticks equal to or above timeout-ticks disables the backoff.
+  short-timeout-ticks: 10
+  short-timeout-after-consecutive-timeouts: 2
+  # A response completes the prior batch; the next batch can start without an extra tick.
+  between-probe-ticks: 0
   auto-check:
     on-join: true
-    # Give the client time to finish joining before opening the probe sign.
     delay-ticks: 20
     first-join-only: false
     max-concurrent: 32
   probes:
+    # Client / hacked-client families
     meteor-client:
       display-name: "Meteor Client"
       key: "key.meteor-client.open-gui"
       mode: METEOR
+      expected-response: "Open GUI"
       enabled: true
-      verification: UNVERIFIED
+      manual: true
+      automatic: true
+      verification: VERIFIED
+      category: client
+      source: "Meteor Client 1.21.11-86 live validation"
+      notes: "Verified on Minecraft 1.21.11 / Meteor Client 1.21.11-86: 3 automatic + 1 manual DETECTED (STRONG, double-check confirmed, KICK enforced exactly once per session), 6 clean baselines (3 vanilla + 3 clean Fabric, 28 CLEAN each), 0 cross-probe collisions."
     liquidbounce:
       display-name: "LiquidBounce"
       key: "liquidbounce.module.killaura.name"
       mode: TRANSLATE
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
+      category: client
     freecam:
       display-name: "Freecam"
       key: "key.freecam.toggle"
       mode: KEYBIND
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
+      category: client
     wurst:
-      display-name: "Wurst Client (-1.21)"
+      display-name: "Wurst Client"
       key: "key.wurst.zoom"
       mode: KEYBIND
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
-    xray-fabric:
-      display-name: "XRay (Fabric)"
-      key: "xray.config.toggle"
-      mode: KEYBIND
-      enabled: true
-      verification: UNVERIFIED
-    chestesp:
-      display-name: "ChestESP"
-      key: "key.chestesp.toggle"
-      mode: KEYBIND
-      enabled: true
-      verification: UNVERIFIED
-    killaura-fabric:
-      display-name: "KillAura (Fabric)"
-      key: "key.killaura"
-      mode: KEYBIND
-      enabled: true
-      verification: UNVERIFIED
-    autofish:
-      display-name: "AutoFish"
-      key: "key.autofish.open_gui"
-      mode: KEYBIND
-      enabled: true
-      verification: UNVERIFIED
-    lumina:
-      display-name: "Lumina"
-      key: "key.lumina.open_click_gui"
-      mode: KEYBIND
-      enabled: true
-      verification: UNVERIFIED
-    autoswitch:
-      display-name: "AutoSwitch"
-      key: "key.autoswitch.toggle"
-      mode: KEYBIND
-      enabled: true
-      verification: UNVERIFIED
+      category: client
     bleachhack:
       display-name: "BleachHack"
       key: "bleachhack.module.killaura"
       mode: TRANSLATE
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
+      category: client
     aristois:
       display-name: "Aristois"
       key: "emc.module.killaura.name"
       mode: TRANSLATE
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
+      category: client
     coffee:
       display-name: "Coffee Client"
       key: "coffee.module.killaura.name"
       mode: TRANSLATE
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
-    world-downloader:
-      display-name: "World Downloader"
-      key: "key.wdl.startStop"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    autoclicker-fabric:
-      display-name: "AutoClicker (Fabric)"
-      key: "autoclicker-fabric.hud.holding"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    antiafk:
-      display-name: "AntiAFK"
-      key: "key.antiafk.toggle"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    auto-clicker-mc:
-      display-name: "Auto Clicker (p1k0chu)"
-      key: "key.auto-clicker_.toggle"
+      category: client
+    lumina:
+      display-name: "Lumina"
+      key: "key.lumina.open_click_gui"
       mode: KEYBIND
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
-    trouser-streak:
-      display-name: "Trouser Streak"
-      key: "addon.trouser-streak.name"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    ui-utils:
-      display-name: "Ui Utils"
-      key: "key.ui-utils.restore_screen"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    seeedcrackerx:
-      display-name: "SeedCrackerX"
-      key: "cracker.already"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    simple-world-downloader:
-      display-name: "Simple World Downloader"
-      key: "swd.screen.config.title"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    trouser-streak-newchunks:
-      display-name: "Trouser Streak (NewerNewChunks)"
-      key: "module.trouser-streak.NewerNewChunks.description"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    trouser-streak-anhero:
-      display-name: "Trouser Streak (AnHero)"
-      key: "module.trouser-streak.AnHero.description"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    glazed:
-      display-name: "Glazed"
-      key: "addon.glazed.name"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    litematica:
-      display-name: "Litematica"
-      key: "litematica.hotkey.name.openmainmenuscreen"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
-    itemscroller:
-      display-name: "Item Scroller"
-      key: "itemscroller.hotkey.name.openconfigscreen"
-      mode: TRANSLATE
-      enabled: true
-      verification: UNVERIFIED
+      category: client
+
+    # Minimap / maps. Xaero's Minimap remains disabled pending validation.
     xaeros-minimap:
       display-name: "Xaero's Minimap"
       key: "gui.xaero_minimap"
       mode: TRANSLATE
-      # Legitimate minimap clients must not become confirmed cheat enforcement.
       enabled: false
+      manual: true
+      automatic: false
       verification: UNVERIFIED
+      category: map
+      notes: "Disabled to avoid a known legitimate-client false positive."
     xaeros-worldmap:
       display-name: "Xaero's World Map"
-      key: "gui.xaero_worldmap"
+      key: "gui.xaero_open_map"
+      mode: TRANSLATE
+      fallback: "⟦NO_XAEROS_WORLDMAP⟧"
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: map
+      source: "Xaero WorldMap 1.46.0 assets/xaeroworldmap/lang/en_us.json"
+      notes: "P28: gui.xaero_worldmap does not exist in the mod jar; identifier taken from the real lang file. Live: WorldMap 1.46.0 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
+
+    # Client-side utility / UI mods
+    litematica:
+      display-name: "Litematica"
+      key: "litematica.config.hotkeys.name.openGuiMainMenu"
+      mode: TRANSLATE
+      fallback: "⟦NO_LITEMATICA⟧"
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+      source: "Litematica 0.26.11 assets/litematica/lang/en_us.json"
+      notes: "P28: litematica.hotkey.name.openmainmenuscreen does not exist in the mod jar; identifier taken from the real lang file. Live: Litematica 0.26.11 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
+    itemscroller:
+      display-name: "Item Scroller"
+      key: "itemscroller.hotkey.name.openconfigscreen"
+      mode: TRANSLATE
+      enabled: false
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+      notes: "P29 DISABLED: identifier matches the fabricated <mod>.hotkey.name.* template (cf. P28 litematica correction); masa's real convention is <mod>.config.hotkeys.name.* per in-hand Litematica 0.26.11 jar. No Item Scroller jar available to confirm a real identifier; do not invent a replacement."
+    apple-skin:
+      display-name: "AppleSkin"
+      key: "text.autoconfig.appleskin.title"
+      mode: TRANSLATE
+      expected-response: "AppleSkin"
+      enabled: true
+      manual: true
+      automatic: false
+      verification: VERIFIED
+      category: utility
+      source: "AppleSkin 3.0.8 live validation (assets/appleskin/lang/en_us.json)"
+      notes: "Verified on Minecraft 1.21.11 / AppleSkin 3.0.8: 3 manual DETECTED (STRONG, double-check confirmed), 3 vanilla manual CLEAN. Tested in a combined AppleSkin+Jade instance; the submitted AppleSkin identifier can only originate from AppleSkin translations."
+    inventory-profiles-next:
+      display-name: "Inventory Profiles Next"
+      key: "inventoryprofiles.gui.config.title"
       mode: TRANSLATE
       enabled: true
+      manual: true
+      automatic: false
       verification: UNVERIFIED
+      category: utility
+      source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
+      notes: "Manual-only identity probe. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
+    inventory-profiles-next-settings:
+      display-name: "Inventory Profiles Next (Settings)"
+      key: "inventoryprofiles.gui.config.ModSettings"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: utility
+      source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
+      notes: "Independent UI translation identifier. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
+    inventory-profiles-next-hotkeys:
+      display-name: "Inventory Profiles Next (Hotkeys)"
+      key: "inventoryprofiles.gui.config.Hotkeys"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: utility
+      source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
+      notes: "Independent UI translation identifier. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
+    inventory-profiles-next-refill:
+      display-name: "Inventory Profiles Next (Auto Refill)"
+      key: "inventoryprofiles.gui.config.AutoRefillSettings"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: utility
+      source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
+      notes: "Independent UI translation identifier. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
+    emi-recipe-viewer:
+      display-name: "EMI"
+      key: "key.emi.toggle_visibility"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: utility
+      source: "https://github.com/emilyploszaj/emi/blob/1.21/xplat/src/main/resources/assets/emi/lang/en_us.json"
+      notes: "Keybind is present in upstream 1.21 English language assets; not live-verified."
+    emi-config:
+      display-name: "EMI (Config UI)"
+      key: "screen.emi.config"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: utility
+      source: "https://github.com/emilyploszaj/emi/blob/1.21/xplat/src/main/resources/assets/emi/lang/en_us.json"
+      notes: "Config screen translation from upstream 1.21 English language assets; not live-verified."
+    jade-config:
+      display-name: "Jade (Config Keybind)"
+      key: "key.jade.config"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: utility
+      source: "https://github.com/Snownee/Jade/blob/1.21.5-fabric/src/main/resources/assets/jade/lang/en_us.json"
+      notes: "Keybind is present in upstream English language assets; not live-verified."
+    jade-config-screen:
+      display-name: "Jade (Config Screen)"
+      key: "gui.jade.configuration"
+      mode: TRANSLATE
+      expected-response: "Jade Configuration"
+      enabled: true
+      manual: true
+      automatic: false
+      verification: VERIFIED
+      category: utility
+      source: "Jade 21.1.6 live validation (assets/jade/lang/en_us.json)"
+      notes: "Verified on Minecraft 1.21.11 / Jade 21.1.6: 3 manual DETECTED (STRONG, double-check confirmed), 3 vanilla manual CLEAN. Tested in a combined AppleSkin+Jade instance; the submitted Jade Configuration identifier can only originate from Jade translations."
+
+    # Automation / gameplay-assistance client identities; these are not
+    # behavior checks and do not inspect player actions.
     baritone:
       display-name: "Baritone"
       key: "baritone.setting.allowBreak"
       mode: TRANSLATE
       enabled: true
+      manual: true
+      automatic: true
       verification: UNVERIFIED
+      category: utility
+    autofish:
+      display-name: "AutoFish"
+      key: "key.autofish.open_gui"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    autoswitch:
+      display-name: "AutoSwitch"
+      key: "key.autoswitch.toggle"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    xray-fabric:
+      display-name: "XRay (Fabric)"
+      key: "xray.config.toggle"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    chestesp:
+      display-name: "ChestESP"
+      key: "key.chestesp.toggle"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: client
+    killaura-fabric:
+      display-name: "KillAura (Fabric)"
+      key: "key.killaura"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: client
+    world-downloader:
+      display-name: "World Downloader"
+      key: "key.wdl.startStop"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    autoclicker-fabric:
+      display-name: "AutoClicker (Fabric)"
+      key: "autoclicker-fabric.hud.holding"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    antiafk:
+      display-name: "AntiAFK"
+      key: "key.antiafk.toggle"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    auto-clicker-mc:
+      display-name: "Auto Clicker (p1k0chu)"
+      key: "key.auto-clicker_.toggle"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+
+    # Other client utility / addon identifiers
+    trouser-streak:
+      display-name: "Trouser Streak"
+      key: "addon.trouser-streak.name"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    ui-utils:
+      display-name: "Ui Utils"
+      key: "key.ui-utils.restore_screen"
+      mode: KEYBIND
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    seeedcrackerx:
+      display-name: "SeedCrackerX"
+      key: "cracker.already"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    simple-world-downloader:
+      display-name: "Simple World Downloader"
+      key: "swd.screen.config.title"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    trouser-streak-newchunks:
+      display-name: "Trouser Streak (NewerNewChunks)"
+      key: "module.trouser-streak.NewerNewChunks.description"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    trouser-streak-anhero:
+      display-name: "Trouser Streak (AnHero)"
+      key: "module.trouser-streak.AnHero.description"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+    glazed:
+      display-name: "Glazed"
+      key: "addon.glazed.name"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility

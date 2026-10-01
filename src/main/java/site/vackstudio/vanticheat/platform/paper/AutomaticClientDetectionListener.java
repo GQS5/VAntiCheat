@@ -121,6 +121,7 @@ public final class AutomaticClientDetectionListener implements Listener {
         if (classification.state() == ClientPlatformService.State.BEDROCK) {
             removeAttempt(attempt);
             coordinator.recordSkippedAdmission();
+            module.probeHealth().observePlatform(attempt.playerId, player.getName(), classification);
             logger.info("AutoCheck SKIPPED player=" + player.getName() + " uuid=" + attempt.playerId
                     + " reason=bedrock-player source=" + classification.source());
             return;
@@ -142,23 +143,31 @@ public final class AutomaticClientDetectionListener implements Listener {
         if (enforcement.isTrusted(attempt.playerId)) {
             removeAttempt(attempt);
             coordinator.recordSkippedAdmission();
-            logger.info("AutoCheck SKIPPED player=" + player.getName()
-                    + " uuid=" + attempt.playerId + " reason=trusted-player");
+            module.probeHealth().observePlatform(attempt.playerId, player.getName(), classification);
+            logger.info("AutoCheck SKIPPED player=" + player.getName() + " uuid=" + attempt.playerId
+                    + " reason=trusted-player");
             return;
         }
 
-        // Avoid even delayed coordinator admission when this registry has no automatic work.
-        List<ProbeDefinition> automaticSnapshot = module.registry().automatic();
+        // Avoid even delayed coordinator admission when no automatic probe passed the
+        // transport capability gate. An INTERACTIVE probe would open client UI on join.
+        List<ProbeDefinition> automaticSnapshot = module.automaticEligibleProbes();
         if (automaticSnapshot.isEmpty()) {
             removeAttempt(attempt);
             coordinator.recordSkippedAdmission();
             logger.fine("AutoCheck SKIPPED player=" + player.getName()
-                    + " uuid=" + attempt.playerId + " reason=no-automatic-probes");
+                    + " uuid=" + attempt.playerId + " reason=no-automatic-probes"
+                    + " (no probe declares a transport that is safe for automatic checks)");
             return;
         }
 
+        // A fresh passive context per connection. Evidence from a previous connection can
+        // never be seen by this one, and the automatic scan is delayed, so the client has
+        // time to emit any join-time channel before the scan reads it.
+        module.beginPassiveContext(attempt.playerId, classification.platform(), brandOf(player));
         AutomaticCheckCoordinator.Target target = new AutomaticCheckCoordinator.Target(
                 attempt.playerId, player.getName(), player::isOnline, attempt.firstJoin, player);
+        module.probeHealth().observePlatform(attempt.playerId, player.getName(), classification);
         AutomaticCheckCoordinator.Ticket ticket = coordinator.scheduleTicket(target, created -> {
             attempt.ticket = created;
             if (!current(attempt)) coordinator.complete(created);
@@ -178,6 +187,18 @@ public final class AutomaticClientDetectionListener implements Listener {
                     + " uuid=" + attempt.playerId + " automaticProbes=" + automaticSnapshot.size());
         } else {
             coordinator.complete(ticket);
+        }
+    }
+
+    /**
+     * Client brand is context only and is never evidence. A platform that does not expose it,
+     * or throws while doing so, degrades to an unknown brand and never affects detection.
+     */
+    private static String brandOf(Player player) {
+        try {
+            return player.getClientBrandName();
+        } catch (LinkageError | RuntimeException exception) {
+            return null;
         }
     }
 
@@ -380,6 +401,7 @@ public final class AutomaticClientDetectionListener implements Listener {
             if (attempt.ticket != null) coordinator.complete(attempt.ticket);
         }
         platforms.remove(playerId);
+        module.signals().remove(playerId);
         module.disconnect(playerId);
         logger.fine("AutoCheck CANCELLED player=" + playerName
                 + " uuid=" + playerId + " reason=disconnect");
@@ -396,6 +418,7 @@ public final class AutomaticClientDetectionListener implements Listener {
             cancelRetry(attempt);
             if (attempt.ticket != null) coordinator.complete(attempt.ticket);
         }
+        module.signals().remove(playerId);
         module.disconnect(playerId);
     }
 

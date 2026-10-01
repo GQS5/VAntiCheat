@@ -1,5 +1,114 @@
 # Changelog
 
+## 0.2.1 - Detection correctness, gameplay safety, and passive detection
+
+> **Read this before upgrading from 0.2.0.** This release deliberately changes what
+> automatic detection does. Automatic coverage is now **1 of 42 probes**, down from 27.
+> Interactive probes no longer run unattended, and a passive-only detection does not
+> enforce by default. This is intentional: 0.2.0 opened a sign editor on joining
+> players, which captured their client UI and stopped them moving. Read
+> [RELEASE-NOTES-0.2.1.md](docs/RELEASE-NOTES-0.2.1.md) before deploying.
+
+Scope: the P32 detection-correctness and gameplay-safety patch, and the P33 passive
+detection research and implementation. Paper and Folia 1.21.11, Java 21.
+
+### Breaking changes
+
+- **Interactive probes no longer run automatically.** The sign-editor transport
+  opens a client screen, so running it unattended interrupted normal movement.
+  With `auto-check.interactive: false` (the default) an automatic join scan opens
+  no client UI and mutates no world. Automatic-eligible probes drop from 27 to 1.
+- **`transport` is now required metadata and defaults to `INTERACTIVE`.** An
+  undeclared probe can never silently join the automatic path.
+- **A resolved-but-unmatched response is now `UNCERTAIN`, not `CLEAN`.** A client
+  that clearly resolved a submitted key is no longer reported as clean.
+- **The `VERIFIED` guardrail also applies to a passive probe**, which must declare
+  the channel it observes.
+- A `PASSIVE` probe may not declare `expected-response` or `identity-resolution`.
+
+### Added
+
+- **Passive detection (P33), the first non-interactive identity path.** A probe may
+  declare a `passive-channel`; the client emitting that inbound custom payload is
+  authoritative identity evidence, observed with no UI, no sign editor, and no
+  movement impact. One probe ships enabled this way: `jade-network-handshake`
+  (`jade:client_handshake`).
+- **Transport capability model** with a hard gate: `automatic-eligible = enabled &&
+  automatic && (transport == PASSIVE || auto-check.interactive)`.
+- **Passive evidence context**: UUID scoped, connection scoped, TTL bounded,
+  cleared on disconnect, reconnect-isolated, no raw payload retained, and a repeated
+  packet collapses to one recorded fact. No score.
+- **`identity-resolution`**: a probe may declare that its key is defined only by the
+  target, making any non-fallback resolution authoritative and **locale
+  independent**.
+- **Corroboration rules** (`ProbeCorroboration`): a scan reaches `DETECTED` only on
+  authoritative evidence, and a non-promotion reason is recorded instead of being
+  silently dropped. The confirmation pass is authoritative.
+- **Client probe health** (`READY`, `RESPONSIVE`, `UNSUPPORTED`, `UNRESPONSIVE`,
+  `TIMED_OUT`, `INTERRUPTED`) for observable probing-channel state. Never a
+  detection, and never a statement about hardware.
+- **Probe validity matrix**: per-probe transport, evidence quality, observable
+  artifact, expected clean/target behaviour, and whether `DETECTED` is reachable.
+  Derived from configuration, so it cannot claim an undeclared capability.
+- **Diagnostics**: `/vac status` and `/vac status verbose` now report passive versus
+  interactive counts, automatic-eligible and blocked-by-transport totals, health,
+  and the promotion decision per scan. `/vac probe <id>` shows the full validity row.
+- Three operator-requested client entries: `cezar-client`, `nova-client`,
+  `forwarded` - all **disabled**, pending artifact verification.
+
+### Fixed
+
+- **Keybind probes could never report `CLEAN`.** `evaluateKeybind` never checked the
+  fallback sentinel, so a clean client permanently returned `UNCERTAIN` and every
+  keybind scan looked ambiguous.
+- A detected Meteor user running a non-default client locale was reported `CLEAN`.
+  The recorded en_us string was the only accepted match; identity resolution is now
+  locale independent.
+- `lastDecision` retained one entry per completed scan and was never released.
+  Now bounded to active sessions.
+- Client brand lookup no longer throws on platforms that do not expose it.
+
+### Detection coverage
+
+```text
+42 probes | 3 VERIFIED | 39 UNVERIFIED | 5 DISABLED
+1 PASSIVE | 41 INTERACTIVE | 37 manual-eligible
+automatic-eligible 1 (28 only with the interactive opt-in) | DETECTED-capable 4
+```
+
+`VERIFIED` remains 3. It was not inflated.
+
+**What percentage of the catalog is detectable automatically without opening a
+client UI? 1 of 42, about 2.4%.** Not optimized. Most client mods transmit nothing
+about themselves: Fabric Loader sends no mod list, and Meteor registers no
+server-bound channel at all.
+
+### Safety properties verified
+
+- Zero gameplay-freeze mechanisms: no movement cancellation, velocity, teleport,
+  slowness, freeze, spectator, or movement lock anywhere in the plugin.
+- Bedrock receives zero probes; `UNKNOWN` fails closed; a passive observation can
+  never reclassify the platform.
+- Client brand is context only and never evidence.
+- Passive identity does not reach enforcement unless `passive.enforce: true`,
+  because the one proven channel belongs to a legitimate utility mod.
+
+### Known limitations
+
+- Automatic coverage is 1 of 42 probes.
+- `jade-network-handshake` is `UNVERIFIED`: proven from the mod and server
+  bytecode, not from a live client session.
+- Passive signals are client-asserted and a modified client can suppress them.
+- Meteor, the primary cheat target, has no passive signal and remains manual only.
+- `xaeros-minimap` stays disabled for its false-positive history; `itemscroller`
+  for an unconfirmable identifier.
+- Movement and combat behavior detection is still not part of the product.
+
+### Validation
+
+- 332 tests, 0 failures, 0 errors, 0 skipped, stable across three full runs.
+- `mvn package` successful, `git diff --check` clean.
+
 ## 0.2.0 - Release candidate
 
 Scope note: this release consolidates the P14-P31 rework into one artifact. It is

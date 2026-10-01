@@ -83,8 +83,19 @@ public final class CheckHacksResponseEvaluator {
                 return result(DetectionStatus.CLEAN, ProbeEvidenceStrength.NONE,
                         "response is a different identifier");
             }
-            return result(DetectionStatus.CLEAN, ProbeEvidenceStrength.NONE,
-                    "response did not exactly match configured evidence");
+            if (probe.canResolveIdentity()) {
+                // The server submitted translatable(key, fallback). A clean client has no
+                // entry for a target-specific key and echoes the fallback; a client that
+                // echoes anything else resolved that key from a translation table only the
+                // target supplies. This is exact, and it does not depend on the client's
+                // display locale, so it is authoritative for a target-specific key.
+                return result(DetectionStatus.DETECTED, ProbeEvidenceStrength.STRONG,
+                        "client resolved a translation key that only this target defines");
+            }
+            // Ambiguous localized text: a client that renders a translated string without
+            // exposing its key cannot be attributed to any specific mod by this protocol.
+            return result(DetectionStatus.UNCERTAIN, ProbeEvidenceStrength.WEAK,
+                    "localized response received without its translation identity");
         }
 
         return switch (probe.mode()) {
@@ -118,6 +129,10 @@ public final class CheckHacksResponseEvaluator {
             return result(DetectionStatus.CLEAN, ProbeEvidenceStrength.NONE,
                     "response is an unrelated translation identifier");
         }
+        if (probe.canResolveIdentity()) {
+            return result(DetectionStatus.DETECTED, ProbeEvidenceStrength.STRONG,
+                    "client resolved a translation key that only this target defines");
+        }
         // The legacy sign protocol may return the client's localized translation rather
         // than its key. Record that weak evidence, but do not mark it DETECTED or confirm it.
         return result(DetectionStatus.UNCERTAIN, ProbeEvidenceStrength.WEAK,
@@ -126,6 +141,12 @@ public final class CheckHacksResponseEvaluator {
 
     private static ProbeEvaluation evaluateKeybind(ProbeDefinition probe, String value,
                                                    boolean exploitPreventer) {
+        if (isExactFallback(probe, value)) {
+            // The transport always plants the sentinel as the fallback, so a client that
+            // cannot resolve this keybind returns it. Without this check a clean client
+            // could never report clean and every keybind scan stayed ambiguous.
+            return result(DetectionStatus.CLEAN, ProbeEvidenceStrength.NONE, "configured fallback matched");
+        }
         if (value.equalsIgnoreCase(probe.key())) {
             return exploitPreventer
                     ? result(DetectionStatus.PROTECTED, ProbeEvidenceStrength.NONE,

@@ -38,6 +38,9 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
     private final ConcurrentMap<UUID, CompletedScan> completedScans = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<UUID> completedScanOrder = new ConcurrentLinkedDeque<>();
     private final ProbeDiagnostics diagnostics = new ProbeDiagnostics();
+    private final ClientProbeHealthService probeHealth = new ClientProbeHealthService();
+    private volatile ClientSignalCollector signals;
+    private volatile boolean passiveEnforcement = false;
     private DetectionModuleContext context;
     private volatile boolean started;
     private volatile ProbeTimeline timeline = new ProbeTimeline(null, false);
@@ -46,6 +49,7 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
     public CheckHacksClientDetectionModule(ClientDetectionConfig configuration, ClientProbeTransport transport) {
         this.configuration = configuration;
         this.transport = transport;
+        this.signals = new ClientSignalCollector(configuration.passiveChannels());
     }
 
     @Override
@@ -90,7 +94,10 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                     "automatic join checks disabled", result);
             return null;
         }
-        return startCheck(target, scanConfiguration.automaticProbes(), trigger, result, true,
+        // Only probes whose declared transport is safe for unattended use are admitted. An
+        // INTERACTIVE probe would open a client screen and capture the player's input, so it
+        // never runs in the background unless the operator opted in explicitly.
+        return startCheck(target, scanConfiguration.automaticEligibleProbes(), trigger, result, true,
                 scanConfiguration);
     }
 
@@ -124,6 +131,38 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
         return configuration.automaticProbes();
     }
 
+    /** Automatic probes that passed the transport capability gate. */
+    public List<ProbeDefinition> automaticEligibleProbes() {
+        return configuration.automaticEligibleProbes();
+    }
+
+    public ClientProbeHealthService probeHealth() {
+        return probeHealth;
+    }
+
+    public ClientSignalCollector signals() {
+        return signals;
+    }
+
+    /**
+     * Whether a detection supported only by passive identity evidence may reach
+     * enforcement. Off by default: the proven passive channel belongs to a legitimate
+     * utility mod, so auto-kicking on it would be a false positive.
+     */
+    public boolean passiveEnforcement() {
+        return passiveEnforcement;
+    }
+
+    public void setPassiveEnforcement(boolean passiveEnforcement) {
+        this.passiveEnforcement = passiveEnforcement;
+    }
+
+    /** Opens a fresh passive context for a connection. */
+    public long beginPassiveContext(UUID playerId,
+                                    site.vackstudio.vanticheat.platform.ClientPlatform platform, String brand) {
+        return signals.beginConnection(playerId, platform, brand);
+    }
+
     public ProbeRegistry registry() {
         return configuration.probeRegistry();
     }
@@ -132,10 +171,33 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
     public void replaceConfiguration(ClientDetectionConfig replacement) {
         if (replacement == null) throw new IllegalArgumentException("replacement cannot be null");
         configuration = replacement;
+        // A reload may change the declared channel set, so the collector's allow-list is
+        // replaced too. Existing per-player context is left intact for the running session.
+        signals = new ClientSignalCollector(replacement.passiveChannels());
     }
 
     public void setProbeEligibility(Predicate<UUID> probeEligibility) {
         this.probeEligibility = java.util.Objects.requireNonNull(probeEligibility, "probeEligibility");
+    }
+
+    /**
+     * Supplies the last authoritative platform classification for probe-health records.
+     * Health is informational, so a resolver that throws or is absent degrades to an
+     * unknown platform rather than affecting detection.
+     */
+    public void setPlatformResolver(java.util.function.Function<UUID, site.vackstudio.vanticheat.platform.ClientPlatform> platformResolver) {
+        this.platformResolver = platformResolver == null ? id -> null : platformResolver;
+    }
+
+    private volatile java.util.function.Function<UUID, site.vackstudio.vanticheat.platform.ClientPlatform> platformResolver =
+            id -> null;
+
+    private site.vackstudio.vanticheat.platform.ClientPlatform platformOf(UUID playerId) {
+        try {
+            return platformResolver.apply(playerId);
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     public String displayName(String probeId) {
@@ -202,12 +264,19 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
             return null;
         }
         List<ProbeDefinition> probes = configuredProbes.stream()
-                .filter(probe -> probe.enabled()
-                        && ("JOIN".equals(trigger) ? probe.automatic() : probe.manual()))
+                .filter(probe -> probe.enabled())
+                .filter(probe -> "JOIN".equals(trigger)
+                        ? probe.automaticEligible(scanConfiguration.interactiveAutomatic())
+                        : probe.manual())
                 .distinct().toList();
         if (probes.isEmpty()) {
-            standaloneResult(target.id(), target.name(), trigger, 0, DetectionStatus.SKIPPED,
-                    "no " + ("JOIN".equals(trigger) ? "automatic" : "manual") + " probes configured", result);
+            String reason = "JOIN".equals(trigger)
+                    ? (scanConfiguration.interactiveAutomatic()
+                    ? "no automatic probes configured"
+                    : "no passive automatic probes; interactive probes require /vac check or "
+                    + "client-detection.auto-check.interactive")
+                    : "no manual probes configured";
+            standaloneResult(target.id(), target.name(), trigger, 0, DetectionStatus.SKIPPED, reason, result);
             return null;
         }
         DetectionSession existing = activeSessions.get(target.id());
@@ -219,6 +288,7 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
         if (activeSessions.putIfAbsent(target.id(), session) != null) {
             return onlyIfIdle ? null : activeSessions.get(target.id());
         }
+        diagnostics.selection(probes);
         long scanStart = timeline.start();
         sessionStarts.put(session.sessionId(), scanStart);
         diagnostics.scanStarted(session.sessionId(), target.id(), target.name(), trigger,
@@ -237,36 +307,131 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                     + " session=" + session.sessionId() + " player=" + target.name()
                     + " uuid=" + target.id() + " probes=" + probeSummary(probes));
         }
-        runPass(session, target, probes, scanConfiguration, ProbePass.INITIAL, new ArrayList<>(), 0, first -> {
-            DetectionStatus firstStatus = ProbeResultAggregator.aggregate(first.statuses());
-            List<ProbeDefinition> flagged = new ArrayList<>();
-            for (int i = 0; i < first.probes().size(); i++) {
-                DetectionStatus status = first.statuses().get(i);
-                if (ProbeResultAggregator.needsConfirmation(status)) {
-                    flagged.add(first.probes().get(i));
-                }
-            }
-            if (!flagged.isEmpty() && scanConfiguration.doubleCheck()) {
-                long confirmationStart = sessionStarts.getOrDefault(session.sessionId(), timeline.start());
-                timeline.event("CONFIRMATION_START", confirmationStart, session.sessionId(), target.id(), trigger,
-                        0, flagged.size(), null);
-                runPass(session, target, flagged, scanConfiguration, ProbePass.CONFIRMATION, new ArrayList<>(), 0, second -> complete(session,
-                        ProbeResultAggregator.aggregate(second.statuses()), "double-check complete", trigger, result));
-            } else {
-                complete(session, firstStatus, "probe batch complete", trigger, result);
-            }
-        });
+        // Passive probes are answered from already-observed protocol evidence and never
+        // enter the transport, so they open no client UI and touch no world. Interactive
+        // probes keep the existing bounded sign-editor path.
+        List<ProbeDefinition> passive = probes.stream()
+                .filter(ProbeDefinition::passiveChannelProbe).toList();
+        List<ProbeDefinition> interactive = probes.stream()
+                .filter(probe -> !probe.passiveChannelProbe()).toList();
+        diagnostics.selection(probes);
+        if (passive.isEmpty()) {
+            runPass(session, target, interactive, scanConfiguration, ProbePass.INITIAL,
+                    new ArrayList<>(), new ArrayList<>(), 0, first -> finishSession(session, target,
+                            first, interactive, scanConfiguration, trigger, result));
+            return session;
+        }
+        runPassive(session, target, passive, interactive, scanConfiguration, trigger, result);
         return session;
+    }
+
+    /** Evaluates passive probes from collected evidence, then continues with any interactive ones. */
+    private void runPassive(DetectionSession session, DetectionTarget target,
+                            List<ProbeDefinition> passive, List<ProbeDefinition> interactive,
+                            ClientDetectionConfig scanConfiguration, String trigger,
+                            Consumer<DetectionResult> result) {
+        List<ProbeEvaluation> evaluations = new ArrayList<>();
+        long scanStart = sessionStarts.getOrDefault(session.sessionId(), timeline.start());
+        for (ProbeDefinition probe : passive) {
+            boolean observed = signals.has(session.targetId(), probe.id());
+            // Presence of the client's own payload on a mod-owned channel is authoritative
+            // identity evidence. Its absence proves nothing and stays CLEAN.
+            ProbeEvaluation evaluation = observed
+                    ? new ProbeEvaluation(DetectionStatus.DETECTED, ProbeEvidenceStrength.STRONG,
+                    "client sent the declared passive channel " + probe.passiveChannel())
+                    : new ProbeEvaluation(DetectionStatus.CLEAN, ProbeEvidenceStrength.NONE,
+                    "declared passive channel was not observed");
+            evaluations.add(evaluation);
+            statusesFor(session, probe, evaluation, ProbePass.INITIAL, trigger, scanStart);
+            // Passive evidence is event driven and stable, so re-reading it is a valid
+            // confirmation. It is only recorded when the operator has opted in to enforcing
+            // passive identity, so the default can never kick on a legitimate utility mod.
+            if (observed && passiveEnforcement) {
+                statusesFor(session, probe, evaluation, ProbePass.CONFIRMATION, trigger, scanStart);
+            }
+        }
+        ProbeCorroboration.Decision passiveDecision = ProbeCorroboration.decide(
+                ProbeCorroboration.observationsOf(passive, evaluations));
+        lastDecision.put(session.sessionId(), passiveDecision);
+        diagnostics.concluded(passiveDecision);
+        if (passiveDecision.confirmed() && !interactive.isEmpty() && scanConfiguration.doubleCheck()) {
+            // Confirm the passive identity against the interactive evidence where the
+            // operator has both configured, instead of assuming the first signal.
+            runPass(session, target, interactive, scanConfiguration, ProbePass.CONFIRMATION,
+                    new ArrayList<>(), new ArrayList<>(), 0, second -> finishSession(session, target,
+                            second, interactive, scanConfiguration, trigger, result));
+            return;
+        }
+        if (interactive.isEmpty()) {
+            complete(session, passiveDecision.status(), "passive scan complete: " + passiveDecision.reason(),
+                    trigger, result);
+            return;
+        }
+        runPass(session, target, interactive, scanConfiguration, ProbePass.INITIAL,
+                new ArrayList<>(), new ArrayList<>(), 0, first -> finishSession(session, target,
+                        first, interactive, scanConfiguration, trigger, result));
+    }
+
+    private void finishSession(DetectionSession session, DetectionTarget target, PassResult pass,
+                               List<ProbeDefinition> probes, ClientDetectionConfig scanConfiguration,
+                               String trigger, Consumer<DetectionResult> result) {
+        ProbeCorroboration.Decision decision = decide(pass);
+        lastDecision.put(session.sessionId(), decision);
+        diagnostics.concluded(decision);
+        List<ProbeDefinition> flagged = new ArrayList<>();
+        for (int index = 0; index < pass.probes().size(); index++) {
+            if (ProbeResultAggregator.needsConfirmation(pass.statuses().get(index))) {
+                flagged.add(pass.probes().get(index));
+            }
+        }
+        if (!flagged.isEmpty() && scanConfiguration.doubleCheck()) {
+            runPass(session, target, flagged, scanConfiguration, ProbePass.CONFIRMATION,
+                    new ArrayList<>(), new ArrayList<>(), 0, second -> {
+                ProbeCorroboration.Decision secondDecision = decide(second);
+                lastDecision.put(session.sessionId(), secondDecision);
+                diagnostics.concluded(secondDecision);
+                complete(session, secondDecision.status(),
+                        "double-check complete: " + secondDecision.reason(), trigger, result);
+            });
+            return;
+        }
+        complete(session, decision.status(), "probe batch complete: " + decision.reason(), trigger, result);
+    }
+
+    private void statusesFor(DetectionSession session, ProbeDefinition probe, ProbeEvaluation evaluation,
+                             ProbePass pass, String trigger, long scanStart) {
+        diagnostics.evidence(evaluation.evidenceStrength());
+        timeline.event("PASSIVE_EVALUATION", scanStart, session.sessionId(), session.targetId(), trigger,
+                0, 1, "probe=" + probe.id() + " status=" + evaluation.status()
+                        + " evidence=" + evaluation.evidenceStrength() + " channel=" + probe.passiveChannel()
+                        + " pass=" + pass);
+        addEvidence(session, probe, evaluation.status(), ProbeResponse.Outcome.RESPONSE,
+                pass, trigger, evaluation.evidenceStrength(), evaluation.detail());
+    }
+
+
+    /** Bounded to active sessions: the entry is released on terminalization. */
+    private final ConcurrentMap<UUID, ProbeCorroboration.Decision> lastDecision = new ConcurrentHashMap<>();
+
+    public ProbeCorroboration.Decision lastDecision(UUID sessionId) {
+        return sessionId == null ? null : lastDecision.get(sessionId);
+    }
+
+    /** Retained promotion decisions. Bounded to active sessions by construction. */
+    public int retainedDecisionCount() {
+        return lastDecision.size();
     }
 
     private void runPass(DetectionSession session, DetectionTarget target, List<ProbeDefinition> probes,
                          ClientDetectionConfig scanConfiguration,
-                         ProbePass pass, List<DetectionStatus> statuses, int timeoutStreak,
+                         ProbePass pass, List<DetectionStatus> statuses,
+                         List<ProbeEvaluation> evaluations, int timeoutStreak,
                          Consumer<PassResult> complete) {
         if (!started || session.state().terminal()) return;
         int batchStart = statuses.size();
         if (batchStart >= probes.size()) {
-            complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses)));
+            complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses),
+                    List.copyOf(evaluations)));
             return;
         }
         List<ProbeDefinition> batch = probes.subList(batchStart, Math.min(batchStart + 3, probes.size()));
@@ -292,10 +457,14 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
             if (normalized.outcome() == ProbeResponse.Outcome.SKIPPED
                     || normalized.outcome() == ProbeResponse.Outcome.CANCELLED) {
                 while (statuses.size() < probes.size()) statuses.add(DetectionStatus.SKIPPED);
-                complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses)));
+                complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses),
+                        List.copyOf(evaluations)));
                 return;
             }
             if (normalized.outcome() != ProbeResponse.Outcome.RESPONSE) {
+                diagnostics.transportOutcome();
+                probeHealth.observeBatch(session.targetId(), target.name(),
+                        platformOf(session.targetId()), batch.get(0).transport(), normalized.outcome(), -1L);
                 DetectionStatus status = switch (normalized.outcome()) {
                     case TIMEOUT -> DetectionStatus.TIMEOUT;
                     case UNSUPPORTED -> DetectionStatus.UNSUPPORTED;
@@ -317,7 +486,8 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                                 "remaining probe omitted after terminal transport failure");
                     }
                     timeline.event("BATCH_COMPLETE", scanStart, request, "outcome=" + normalized.outcome());
-                    complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses)));
+                    complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses),
+                            List.copyOf(evaluations)));
                     return;
                 }
             } else {
@@ -327,9 +497,14 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                     ProbeEvaluation evaluation = CheckHacksResponseEvaluator.evaluateDetailed(batch.get(i),
                             normalized.lines().get(i), normalized.componentIdentities().get(i), exploitPreventer);
                     statuses.add(evaluation.status());
+                    evaluations.add(evaluation);
+                    diagnostics.evidence(evaluation.evidenceStrength());
+                    probeHealth.observeEvaluation(session.targetId(), target.name(),
+                            platformOf(session.targetId()), evaluation, -1L);
                     timeline.event("PROBE_EVALUATION", scanStart, request,
                             "probe=" + batch.get(i).id() + " status=" + evaluation.status()
-                                    + " evidence=" + evaluation.evidenceStrength());
+                                    + " evidence=" + evaluation.evidenceStrength()
+                                    + " transport=" + batch.get(i).transport());
                     addEvidence(session, batch.get(i), evaluation.status(), normalized.outcome(), pass,
                             trigger(session), evaluation.evidenceStrength(), evaluation.detail());
                 }
@@ -348,13 +523,14 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                         Math.min(batchStart + batch.size(), statuses.size())));
             }
             if (statuses.size() >= probes.size()) {
-                complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses)));
+                complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses),
+                        List.copyOf(evaluations)));
                 return;
             }
             timeline.event("NEXT_BATCH_START", scanStart, request, null);
             Scheduler scheduler = context.platform().scheduler();
             Runnable nextBatch = () -> runPass(session, target, probes, scanConfiguration, pass, statuses,
-                    nextTimeoutStreak, complete);
+                    evaluations, nextTimeoutStreak, complete);
             if (scanConfiguration.betweenProbeTicks() == 0) nextBatch.run();
             else scheduler.runGlobalLater(nextBatch, scanConfiguration.betweenProbeTicks());
             } catch (RuntimeException exception) {
@@ -377,7 +553,8 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                         ProbeResponse.Outcome.ERROR, pass, trigger(session), ProbeEvidenceStrength.NONE,
                         "transport send failed");
             }
-            complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses)));
+            complete.accept(new PassResult(List.copyOf(probes), List.copyOf(statuses),
+                    List.copyOf(evaluations)));
             return;
         }
         handleReference.set(handle);
@@ -393,6 +570,7 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
     public void disconnect(UUID targetId) {
         ProbeHandle handle = activeHandles.remove(targetId);
         if (handle != null) handle.cancel();
+        probeHealth.remove(targetId);
         DetectionSession session = activeSessions.remove(targetId);
         if (session != null && !session.state().terminal()) {
             Consumer<DetectionResult> callback = terminalCallbacks.getOrDefault(session.sessionId(), ignored -> { });
@@ -413,7 +591,8 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
                             java.util.Map.entry("probe", probe.id()),
                             java.util.Map.entry("displayName", probe.displayName()),
                             java.util.Map.entry("mode", probe.mode().name()),
-                            java.util.Map.entry("transport", outcome.name()),
+                            java.util.Map.entry("transport", probe.transport().name()),
+                            java.util.Map.entry("outcome", outcome.name()),
                             java.util.Map.entry("classification", status.name()),
                             java.util.Map.entry("evidenceStrength", evidenceStrength.name()),
                             java.util.Map.entry("verification", probe.verificationStatus().name()),
@@ -465,6 +644,7 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
         timeline.event("SCAN_COMPLETE", scanStart, session.sessionId(), session.targetId(), trigger,
                 0, session.result().evidence().size(), "status=" + status);
         sessionStarts.remove(session.sessionId());
+        lastDecision.remove(session.sessionId());
         if (context != null && context.configuration().debug() && status != DetectionStatus.SKIPPED) {
             completedScans.put(session.sessionId(), new CompletedScan(scanStart, session.targetId(), trigger));
             completedScanOrder.addLast(session.sessionId());
@@ -527,7 +707,42 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
         }
     }
 
-    private record PassResult(List<ProbeDefinition> probes, List<DetectionStatus> statuses) { }
+    private record PassResult(List<ProbeDefinition> probes, List<DetectionStatus> statuses,
+                              List<ProbeEvaluation> evaluations) {
+        private PassResult(List<ProbeDefinition> probes, List<DetectionStatus> statuses) {
+            this(probes, statuses, List.of());
+        }
+    }
+
+    /**
+     * Resolves a pass through the explicit promotion rules. This is the only place a scan
+     * status is decided, and it can only return {@code DETECTED} when at least one
+     * observation carried authoritative exact-identity evidence.
+     */
+    private ProbeCorroboration.Decision decide(PassResult pass) {
+        if (pass.evaluations().isEmpty() || pass.evaluations().size() != pass.statuses().size()) {
+            return new ProbeCorroboration.Decision(
+                    conclusionFor(ProbeResultAggregator.aggregate(pass.statuses())),
+                    ProbeResultAggregator.aggregate(pass.statuses()), List.of(),
+                    "no per-probe evaluations available for this pass", 0, 0);
+        }
+        return ProbeCorroboration.decide(
+                ProbeCorroboration.observationsOf(pass.probes(), pass.evaluations()));
+    }
+
+    private static ProbeCorroboration.Conclusion conclusionFor(DetectionStatus status) {
+        return switch (status) {
+            case DETECTED -> ProbeCorroboration.Conclusion.CONFIRMED;
+            case UNCERTAIN -> ProbeCorroboration.Conclusion.AMBIGUOUS;
+            case CLEAN -> ProbeCorroboration.Conclusion.NO_TARGET;
+            case TIMEOUT -> ProbeCorroboration.Conclusion.TIMED_OUT;
+            case UNSUPPORTED -> ProbeCorroboration.Conclusion.UNSUPPORTED;
+            case ERROR -> ProbeCorroboration.Conclusion.FAILED;
+            case SKIPPED -> ProbeCorroboration.Conclusion.NOT_RUN;
+            case PROTECTED -> ProbeCorroboration.Conclusion.PROTECTED;
+            case NOT_CHECKED, RUNNING -> ProbeCorroboration.Conclusion.NOT_RUN;
+        };
+    }
 
     @Override public void stop() {
         started = false;
@@ -546,6 +761,8 @@ public final class CheckHacksClientDetectionModule implements DetectionModule {
         terminalCallbacks.clear();
         completedScans.clear();
         completedScanOrder.clear();
+        lastDecision.clear();
+        probeHealth.clear();
         diagnostics.clearActive();
         diagnostics.clearHistory();
     }

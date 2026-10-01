@@ -13,6 +13,7 @@ import site.vackstudio.vanticheat.detection.DetectionStatus;
 import site.vackstudio.vanticheat.detection.probe.ProbeDiagnostics;
 import site.vackstudio.vanticheat.detection.probe.ProbeDefinition;
 import site.vackstudio.vanticheat.detection.probe.ProbeRegistry;
+import site.vackstudio.vanticheat.detection.probe.ProbeValidityMatrix;
 import site.vackstudio.vanticheat.lunar.LunarClientService;
 import site.vackstudio.vanticheat.trusted.TrustedPlayer;
 import site.vackstudio.vanticheat.trusted.TrustedPlayerService;
@@ -172,6 +173,17 @@ public final class VAntiCheatCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§7Results detected/timeout/error: §f" + status.detections()
                 + "/" + status.timeouts() + "/" + status.errors()
                 + " §7Clean/protected: §f" + status.cleans() + "/" + status.protectedResults());
+        ProbeDiagnostics.Coverage coverage = status.coverage();
+        sender.sendMessage("§7Probes passive/interactive: §f" + coverage.passive() + "/" + coverage.interactive()
+                + " §7Automatic-eligible: §f" + config.automaticEligibleProbes()
+                + " §7Detected-capable: §f" + config.detectedCapableProbes());
+        sender.sendMessage("§7Interactive automatic allowed: §f"
+                + (config.interactiveAutomaticProbes() > 0 ? "OPT-IN" : "NO")
+                + " §7Blocked-by-transport: §f" + Math.max(0,
+                config.automaticProbes() - config.automaticEligibleProbes()));
+        sender.sendMessage("§7Probe health: §f" + status.probeHealth());
+        sender.sendMessage("§7Passive observer: §f" + status.passiveObserver()
+                + " §7Passive probes: §f" + config.passiveProbes());
         if (verbose) verboseStatus(sender, status);
     }
 
@@ -187,6 +199,23 @@ public final class VAntiCheatCommand implements CommandExecutor, TabCompleter {
                 + status.automatic().released() + "/" + status.automatic().skippedAdmissions()
                 + "/" + status.automatic().failures());
         sender.sendMessage("§7Probe outcomes since startup: §f" + status.results());
+        ProbeDiagnostics.Coverage coverage = status.coverage();
+        sender.sendMessage("§7Eligibility totals eligible/passive/interactive: §f"
+                + coverage.eligible() + "/" + coverage.passive() + "/" + coverage.interactive()
+                + " §7Skipped by policy: §f" + coverage.skippedByPolicy());
+        sender.sendMessage("§7Evidence weak/strong: §f" + coverage.weakEvidence() + "/" + coverage.strongEvidence()
+                + " §7Detected/ambiguous/confirmed: §f" + coverage.detected() + "/"
+                + coverage.ambiguous() + "/" + coverage.confirmed()
+                + " §7Not promoted: §f" + coverage.notPromoted());
+        sender.sendMessage("§7Conclusions: §f" + status.conclusionReasons()
+                + " §8(counts by reason; no response payloads are stored)");
+        sender.sendMessage("§7Transport non-response outcomes: §f" + coverage.transportOutcomes());
+        sender.sendMessage("§7Client probe health (never a detection): §f" + status.probeHealthDetail());
+        sender.sendMessage("§7Passive observer: §f" + status.passiveObserver()
+                + " §7Signals: §f" + status.passiveSignals());
+        sender.sendMessage("§7Passive channels: §f" + status.passiveChannels()
+                + " §7Enforce passive: §f" + (status.configuration().passiveEnforce() ? "YES" : "NO")
+                + " §8(off: a passive-only detection is reported, never kicked)");
         String scanWallTime = status.completedScans() == 0 ? "N/A"
                 : status.lastScanDurationMillis() + "/" + status.averageScanDurationMillis() + "ms";
         sender.sendMessage("§7Completed scans: §f" + status.completedScans()
@@ -255,8 +284,10 @@ public final class VAntiCheatCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(messages.render("probe.unknown", Map.of("probe", id)));
             return;
         }
-        boolean automatic = probe.enabled() && probe.automatic();
+        boolean interactiveAutomatic = diagnostics.interactiveAutomatic();
+        boolean automatic = probe.automaticEligible(interactiveAutomatic);
         boolean manual = probe.enabled() && probe.manual();
+        ProbeValidityMatrix.Row row = diagnostics.probeValidityMatrix().row(probe.id());
         sender.sendMessage("§8--- §bProbe: " + probe.id() + " §8---");
         sender.sendMessage("§7Display name: §f" + probe.displayName());
         sender.sendMessage("§7Mode: §f" + probe.mode());
@@ -266,12 +297,26 @@ public final class VAntiCheatCommand implements CommandExecutor, TabCompleter {
                 ? "not configured" : probe.expectedResponse()));
         sender.sendMessage("§7Fallback: §f" + probe.fallback());
         sender.sendMessage("§7Enabled: §f" + probe.enabled());
+        sender.sendMessage("§7Transport: §f" + probe.transport()
+                + " §7opens client UI: §f" + probe.transport().opensClientUi());
         sender.sendMessage("§7Manual: §f" + probe.manual());
-        sender.sendMessage("§7Automatic: §f" + probe.automatic());
+        sender.sendMessage("§7Automatic configured: §f" + probe.automatic());
         sender.sendMessage("§7Verification: §f" + probe.verificationStatus());
         sender.sendMessage("§7Status: §f" + probeStatus(probe));
-        sender.sendMessage("§7Eligible automatic: §f" + automatic);
+        sender.sendMessage("§7Eligible automatic: §f" + automatic
+                + (probe.automatic() && !automatic
+                ? " §8(blocked: INTERACTIVE transport would capture player input)" : ""));
         sender.sendMessage("§7Eligible manual: §f" + manual);
+        if (row != null) {
+            sender.sendMessage("§7Identity transport: §f" + row.identityTransport()
+                    + " §7Strongest evidence: §f" + row.strongestEvidence());
+            sender.sendMessage("§7Evidence quality: §f" + row.evidenceQuality());
+            sender.sendMessage("§7Expected artifact: §f" + row.expectedArtifact());
+            sender.sendMessage("§7Clean client: §f" + row.cleanClientBehavior());
+            sender.sendMessage("§7Target client: §f" + row.targetClientBehavior());
+            sender.sendMessage("§7Can reach DETECTED: §f" + row.detectedCapable()
+                    + " §7Reachable conclusion: §f" + row.reachableConclusion());
+        }
         sender.sendMessage("§7Structurally valid: §fYES");
         if (!probe.notes().isBlank()) sender.sendMessage("§7Notes: §f" + probe.notes());
         if (!probe.source().isBlank()) sender.sendMessage("§7Source: §f" + probe.source());

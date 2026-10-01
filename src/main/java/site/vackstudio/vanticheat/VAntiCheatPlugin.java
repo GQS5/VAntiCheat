@@ -14,6 +14,7 @@ import site.vackstudio.vanticheat.detection.probe.CheckHacksClientDetectionModul
 import site.vackstudio.vanticheat.platform.paper.PaperSignProbeTransport;
 import site.vackstudio.vanticheat.platform.paper.ClientProbeCommand;
 import site.vackstudio.vanticheat.platform.paper.PaperEnforcementExecutor;
+import site.vackstudio.vanticheat.platform.paper.PaperPassiveChannelObserver;
 import site.vackstudio.vanticheat.platform.paper.AutomaticClientDetectionListener;
 import site.vackstudio.vanticheat.enforcement.DefaultEnforcementPolicy;
 import site.vackstudio.vanticheat.enforcement.EnforcementService;
@@ -43,6 +44,7 @@ public final class VAntiCheatPlugin extends JavaPlugin {
     private ClientDetectionConfig clientDetectionConfig;
     private volatile boolean clientConfigValid;
     private AutomaticClientDetectionListener automaticDetectionListener;
+    private PaperPassiveChannelObserver passiveObserver;
     private Messages messages;
     private LunarClientService lunarService;
     private ClientPlatformService clientPlatforms;
@@ -88,6 +90,16 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             transport.setProbeEligibility(id -> clientPlatforms.refresh(id).canProbe());
             clientDetectionModule = new CheckHacksClientDetectionModule(clientDetectionConfig, transport);
             clientDetectionModule.setProbeEligibility(id -> clientPlatforms.refresh(id).canProbe());
+            clientDetectionModule.setPlatformResolver(
+                    id -> clientPlatforms.get(id) == null ? null : clientPlatforms.get(id).platform());
+            clientDetectionModule.setPassiveEnforcement(clientDetectionConfig.passiveEnforce());
+            passiveObserver = new PaperPassiveChannelObserver(this, clientDetectionModule.signals(), getLogger(),
+                    clientDetectionConfig.passiveChannels(),
+                    id -> clientPlatforms.refresh(id),
+                    this::brandOf,
+                    id -> clientDetectionModule.signals().entry(id) == null
+                            ? 0L : clientDetectionModule.signals().entry(id).generation());
+            passiveObserver.register();
             clientPlatforms.addListener((id, classification) -> {
                 if (classification.state() == ClientPlatformService.State.BEDROCK && clientDetectionModule != null) {
                     if (automaticDetectionListener != null) automaticDetectionListener.platformBecameBedrock(id);
@@ -150,11 +162,47 @@ public final class VAntiCheatPlugin extends JavaPlugin {
             trustedPlayers = null;
         }
         clientProbeCommand = null;
+        if (passiveObserver != null) {
+            passiveObserver.unregister();
+            passiveObserver = null;
+        }
         clientDetectionModule = null;
         clientDetectionConfig = null;
         automaticDetectionListener = null;
         messages = null;
         diagnostics = null;
+    }
+
+    /** Re-registers passive channel listeners after a reload changed the declared set. */
+    /** Client brand is context only, never evidence, and must never break detection. */
+    private String brandOf(java.util.UUID playerId) {
+        try {
+            org.bukkit.entity.Player online = getServer().getPlayer(playerId);
+            return online == null ? null : online.getClientBrandName();
+        } catch (LinkageError | RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private boolean clientDetectionConfigPassiveEnforce() {
+        ClientDetectionConfig config = clientDetectionConfig;
+        return config != null && config.passiveEnforce();
+    }
+
+    private void refreshPassiveObserver() {
+        if (clientDetectionModule == null || clientDetectionConfig == null) return;
+        clientDetectionModule.setPassiveEnforcement(clientDetectionConfig.passiveEnforce());
+        if (passiveObserver == null) return;
+        if (!passiveObserver.channels().equals(clientDetectionConfig.passiveChannels().keySet())) {
+            passiveObserver.unregister();
+            passiveObserver = new PaperPassiveChannelObserver(this, clientDetectionModule.signals(), getLogger(),
+                    clientDetectionConfig.passiveChannels(),
+                    id -> clientPlatforms.refresh(id),
+                    this::brandOf,
+                    id -> clientDetectionModule.signals().entry(id) == null
+                            ? 0L : clientDetectionModule.signals().entry(id).generation());
+            passiveObserver.register();
+        }
     }
 
     public boolean reloadPlugin() {
@@ -176,6 +224,8 @@ public final class VAntiCheatPlugin extends JavaPlugin {
         clientDetectionConfig = replacement;
         clientConfigValid = true;
         automaticDetectionListener.reloadConfiguration(replacement);
+        clientDetectionConfig = replacement;
+        refreshPassiveObserver();
         replacement.warnings().forEach(getLogger()::warning);
         long version = registryVersion.incrementAndGet();
         lastReload.set(new VAntiCheatDiagnostics.Reload("SUCCESS", Instant.now(),

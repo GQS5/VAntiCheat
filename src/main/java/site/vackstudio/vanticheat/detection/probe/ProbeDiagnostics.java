@@ -32,13 +32,28 @@ public final class ProbeDiagnostics {
         public RecentScan { detectedProbeIds = List.copyOf(detectedProbeIds); }
     }
 
+    /**
+     * Why a scan concluded the way it did. Every field is a count or a fixed reason code;
+     * no raw response payload is retained.
+     */
+    public record Coverage(long eligible, long passive, long interactive, long skippedByPolicy,
+                           long transportOutcomes, long weakEvidence, long strongEvidence,
+                           long detected, long ambiguous, long confirmed, long notPromoted) {
+        public static Coverage empty() {
+            return new Coverage(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+    }
+
     public record Snapshot(Map<DetectionStatus, Long> results, long completedScans,
                            long lastDurationMillis, long averageDurationMillis,
-                           List<ActiveScan> activeScans, List<RecentScan> recentScans) {
+                           List<ActiveScan> activeScans, List<RecentScan> recentScans,
+                           Coverage coverage, Map<String, Long> conclusionReasons) {
         public Snapshot {
             results = java.util.Collections.unmodifiableMap(new EnumMap<>(results));
             activeScans = List.copyOf(activeScans);
             recentScans = List.copyOf(recentScans);
+            conclusionReasons = java.util.Collections.unmodifiableMap(
+                    new java.util.LinkedHashMap<>(conclusionReasons));
         }
 
         public long count(DetectionStatus status) { return results.getOrDefault(status, 0L); }
@@ -50,6 +65,18 @@ public final class ProbeDiagnostics {
     }
 
     private final EnumMap<DetectionStatus, LongAdder> resultCounters = new EnumMap<>(DetectionStatus.class);
+    private final Map<ProbeEvidenceStrength, LongAdder> evidenceCounters =
+            new EnumMap<>(ProbeEvidenceStrength.class);
+    private final Map<String, LongAdder> conclusionReasons = new java.util.concurrent.ConcurrentHashMap<>();
+    private final LongAdder eligible = new LongAdder();
+    private final LongAdder passive = new LongAdder();
+    private final LongAdder interactive = new LongAdder();
+    private final LongAdder skippedByPolicy = new LongAdder();
+    private final LongAdder transportOutcomes = new LongAdder();
+    private final LongAdder detected = new LongAdder();
+    private final LongAdder ambiguous = new LongAdder();
+    private final LongAdder confirmed = new LongAdder();
+    private final LongAdder notPromoted = new LongAdder();
     private final ConcurrentMap<UUID, MutableActive> active = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<RecentScan> recent = new ConcurrentLinkedDeque<>();
     private final AtomicInteger recentSize = new AtomicInteger();
@@ -60,6 +87,61 @@ public final class ProbeDiagnostics {
 
     public ProbeDiagnostics() {
         for (DetectionStatus status : DetectionStatus.values()) resultCounters.put(status, new LongAdder());
+        for (ProbeEvidenceStrength strength : ProbeEvidenceStrength.values()) {
+            evidenceCounters.put(strength, new LongAdder());
+        }
+    }
+
+    /** Records how many probes were eligible and how their transports were distributed. */
+    public void selection(List<ProbeDefinition> probes) {
+        eligible.add(probes.size());
+        for (ProbeDefinition probe : probes) {
+            if (probe.transport() == ProbeTransportMode.PASSIVE) passive.increment();
+            else interactive.increment();
+        }
+    }
+
+    public void skippedByPolicy(int count) {
+        skippedByPolicy.add(count);
+    }
+
+    public void transportOutcome() {
+        transportOutcomes.increment();
+    }
+
+    /** Records a scan conclusion and, when it was not promoted, why. */
+    public void concluded(ProbeCorroboration.Decision decision) {
+        if (decision == null) return;
+        conclusionReasons.computeIfAbsent(decision.conclusion().name(), key -> new LongAdder()).increment();
+        switch (decision.conclusion()) {
+            case CONFIRMED -> confirmed.increment();
+            case AMBIGUOUS -> {
+                ambiguous.increment();
+                notPromoted.add(decision.weakSignals());
+            }
+            case NO_TARGET -> notPromoted.increment();
+            default -> { }
+        }
+    }
+
+    public void evidence(ProbeEvidenceStrength strength) {
+        if (strength == null) return;
+        evidenceCounters.get(strength).increment();
+        if (strength == ProbeEvidenceStrength.STRONG) detected.increment();
+    }
+
+    public Coverage coverage() {
+        return new Coverage(eligible.sum(), passive.sum(), interactive.sum(),
+                skippedByPolicy.sum(), transportOutcomes.sum(),
+                evidenceCounters.get(ProbeEvidenceStrength.WEAK).sum(),
+                evidenceCounters.get(ProbeEvidenceStrength.STRONG).sum(),
+                detected.sum(), ambiguous.sum(), confirmed.sum(), notPromoted.sum());
+    }
+
+    public Map<String, Long> conclusionReasons() {
+        Map<String, Long> snapshot = new java.util.TreeMap<>();
+        conclusionReasons.forEach((key, value) -> snapshot.put(key, value.sum()));
+        return snapshot;
     }
 
     public void scanStarted(UUID sessionId, UUID playerId, String playerName, String trigger,
@@ -140,7 +222,7 @@ public final class ProbeDiagnostics {
         long completed = completedScans.sum();
         return new Snapshot(results, completed, lastDurationMillis.get(),
                 completed == 0 ? 0 : durationTotalMillis.sum() / completed,
-                activeSnapshot, recentSnapshot);
+                activeSnapshot, recentSnapshot, coverage(), conclusionReasons());
     }
 
     private static final class MutableActive {

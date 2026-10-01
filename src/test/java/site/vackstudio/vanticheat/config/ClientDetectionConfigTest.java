@@ -28,11 +28,11 @@ class ClientDetectionConfigTest {
         assertTrue(config.enabled());
         assertEquals(40, config.timeoutTicks());
         assertEquals(0, config.betweenProbeTicks());
-        assertEquals(38, config.probes().size());
+        assertEquals(42, config.probes().size());
         assertTrue(config.autoCheckOnJoin());
         assertEquals(20, config.autoCheckDelayTicks());
         assertEquals(32, config.maxConcurrentAutoChecks());
-        assertEquals(27, config.automaticProbes().size());
+        assertEquals(28, config.automaticProbes().size());
         assertEquals(config.probes().stream().filter(probe -> probe.enabled() && probe.automatic())
                         .map(ProbeDefinition::id).toList(),
                 config.automaticProbes().stream().map(ProbeDefinition::id).toList());
@@ -59,7 +59,7 @@ class ClientDetectionConfigTest {
 
         ClientDetectionConfig config = ClientDetectionConfig.loadStrict(directory);
 
-        assertEquals(38, config.probes().size());
+        assertEquals(42, config.probes().size());
         assertEquals(before, Files.readString(file));
     }
 
@@ -317,7 +317,7 @@ class ClientDetectionConfigTest {
             assertTrue(!probe.key().matches("^[a-z0-9_.-]+\\.hotkey\\.name\\..+$"),
                     "fabricated hotkey.name template in enabled probe: " + probe.id());
         }
-        assertEquals(38, config.probeRegistry().size());
+        assertEquals(42, config.probeRegistry().size());
         assertEquals(config.probeRegistry().size(), config.probeRegistry().verifiedCount()
                 + config.probeRegistry().unverifiedCount());
         assertEquals(config.probeRegistry().size() - config.probeRegistry().enabledCount(),
@@ -330,12 +330,12 @@ class ClientDetectionConfigTest {
     void expandedCatalogRegistryFiltersByEnabledManualAutomaticAndVerification() throws Exception {
         ClientDetectionConfig config = ClientDetectionConfig.parse(bundledText());
 
-        assertEquals(38, config.probeRegistry().size());
-        assertEquals(36, config.probeRegistry().enabledCount());
-        assertEquals(36, config.probeRegistry().manualCount());
-        assertEquals(27, config.probeRegistry().automaticCount());
+        assertEquals(42, config.probeRegistry().size());
+        assertEquals(37, config.probeRegistry().enabledCount());
+        assertEquals(37, config.probeRegistry().manualCount());
+        assertEquals(28, config.probeRegistry().automaticCount());
         assertEquals(3, config.probeRegistry().verified().size());
-        assertEquals(35, config.probeRegistry().unverified().size());
+        assertEquals(39, config.probeRegistry().unverified().size());
         assertTrue(config.probeRegistry().verified().stream()
                 .map(ProbeDefinition::id).toList().containsAll(
                         List.of("meteor-client", "apple-skin", "jade-config-screen")));

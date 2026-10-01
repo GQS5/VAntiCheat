@@ -1,4 +1,4 @@
-# VAntiCheat 0.2.0
+# VAntiCheat 0.2.1
 
 VAntiCheat is a server-side client/mod detection plugin for Paper and Folia
 1.21.11. It uses configuration-driven probes, automatic join checks, manual
@@ -13,31 +13,220 @@ This release is not a claim of complete live cheat-client coverage.
 - Java **21**
 - A server plugin installation; no proxy or client component is bundled
 
-## Included Detection
+## What This Plugin Actually Detects
 
-Client detection supports configured translation/keybind probes, automatic join
-checks, confirmation passes, bounded sessions, and enforcement for confirmed
-client-detection results. 3 of 38 probe definitions are live-validated
-(`VERIFIED`): Meteor Client, AppleSkin, and Jade Config Screen, each verified
-on Minecraft 1.21.11 against the exact mod versions recorded in its notes.
-Xaero's Minimap remains disabled, and Item Scroller is disabled because its
-configured identifier matches a fabricated template with no confirmable
-artifact. Xaero's World Map and Litematica probes use corrected real-mod
-identifiers and remain `UNVERIFIED`: they separate targets (`UNCERTAIN`) from
-baselines (`CLEAN`) but cannot produce `DETECTED`. AppleSkin and Inventory
-Profiles Next have additional upstream-language-key definitions, enabled for
-manual checks only; the IPN definitions remain `UNVERIFIED`.
+Read this before configuring anything. VAntiCheat detects **client and mod identity**
+over one specific protocol channel. It does not detect "all cheats", and it does not
+detect hardware, device, CPU, GPU, RAM, or FPS quality.
+
+### The one mechanism that works
+
+Every probe is delivered the same way:
+
+1. The server writes a translatable component onto a temporary sign above the player.
+2. The server opens that sign's editor on the client.
+3. The client resolves the translation and submits the sign back.
+4. The server compares the answer against what a clean client is required to return.
+
+A client that does not have a mod's translation key returns the server-supplied
+sentinel. A client that has it returns its own rendering. That difference is the
+only authoritative per-mod signal available here.
+
+### Why there is no automatic mod detection by default
+
+The sign editor is a **client screen**. While it is open, the client captures the
+player's input and the player cannot walk normally. Running that on every join, for
+every probe, is not an acceptable background behaviour.
+
+There is also no alternative. On Paper 1.21.11 there is no non-interactive,
+server-observable per-mod identity signal for vanilla or Fabric clients. The
+available passive signals are platform classification and client brand, and a
+Fabric client that is running Meteor still reports the same brand as a legitimate
+Fabric client running only Sodium. Reading Forge's mod-list handshake or an
+inbound plugin-message payload would need a packet-level library, which this
+plugin deliberately does not depend on.
+
+So the default is explicit and safe:
+
+- `client-detection.auto-check.interactive` is **`false`**.
+- An automatic join scan therefore opens **no client UI and never touches the world**.
+- Interactive probes run only when you ask for them: `/vac check <player>`.
+- Setting the flag to `true` restores unattended interactive scanning. Read the
+  caveat in `client-detection.yml` first; it will repeatedly open a sign editor
+  on the player's screen and block their movement.
+
+### What a scan can conclude
+
+| Conclusion | Meaning |
+| --- | --- |
+| `DETECTED` | Exact structured identity, or a client resolved a translation key that only this target defines |
+| `CLEAN` | The client answered and nothing indicated a probed target |
+| `UNCERTAIN` | The client rendered translated text with no identity attached; not attributable to any specific mod |
+| `PROTECTED` | The response channel was neutralized |
+| `TIMEOUT` | No answer inside the deadline; never clean, never detected |
+| `UNSUPPORTED` | The transport cannot carry this probe |
+| `ERROR` | Transport, scheduling, or processing failure; never a detection |
+| `SKIPPED` | Policy or eligibility stop |
+
+`UNCERTAIN` is the honest ceiling for a translation probe with no declared
+identity resolution, because the protocol returns a plain string and a plain
+string cannot be attributed to a specific mod.
+
+### Coverage, stated exactly
+
+```text
+39 probe definitions
+3   VERIFIED     live-validated against a real client on Minecraft 1.21.11
+36  UNVERIFIED   no live evidence; may reach UNCERTAIN, never DETECTED
+2   DISABLED     intentionally not executed, with a recorded reason
+1   PASSIVE      answered by an observed protocol channel, no client UI
+38  INTERACTIVE  answered through the sign editor, manual verification only
+37  manual-eligible
+28  automatic-eligible   (1 passive by default; 28 only with the interactive opt-in)
+4   DETECTED-capable
+```
+
+**What percentage can be detected automatically without opening a client UI?**
+**1 of 39 probes — 2.6%.** That is the honest number and it is not optimized. The single
+automatic probe is `jade-network-handshake`, explained below. Raising it would require
+either client-side code or protocol tooling this plugin deliberately does not use.
+
+VERIFIED, with the exact versions recorded in each probe's notes:
+
+| Probe | Version | Observable evidence |
+| --- | --- | --- |
+| `meteor-client` | Meteor Client 1.21.11-86 | Client resolves `key.meteor-client.open-gui` |
+| `apple-skin` | AppleSkin 3.0.8 | Client resolves `text.autoconfig.appleskin.title` |
+| `jade-config-screen` | Jade 21.1.6 | Client resolves `gui.jade.configuration` |
+
+Detection is verified only for those exact mod and Minecraft versions. A newer
+build of the same mod is not covered by that evidence.
+
+### The one passive signal, and exactly how it works
+
+Most client mods send the server nothing about themselves. Fabric Loader does not
+transmit a mod list at all — verified by inspecting the loader, which contains no
+client-to-server networking. Meteor registers no server-bound channel whatsoever.
+AppleSkin only *receives* server-to-client payloads. Litematica's channels are
+render overlays.
+
+Jade is different, and it is the reason automatic detection is possible at all.
+Jade 21.1.6 hooks `ClientPlayConnectionEvents.JOIN` and, in that handler,
+unconditionally sends a custom payload on the channel `jade:client_handshake`.
+No player action is involved. The full chain, every link verified against the
+real Jade jar and the real Paper 1.21.11 server jar:
+
+```text
+Jade: ClientPlayConnectionEvents.JOIN
+  -> ClientPlayNetworking.send(new ClientHandshakePacket("9"))
+  -> inbound custom payload, channel "jade:client_handshake"
+  -> server has no codec for that channel, so it decodes as DiscardedPayload,
+     which preserves the channel id and the raw bytes
+  -> ServerCommonPacketListenerImpl.handleCustomPayload
+  -> CraftServer.getMessenger().dispatchIncomingMessage(conn, channel, data)
+  -> StandardMessenger dispatches to listeners registered for that exact channel
+  -> jade-network-handshake probe: STRONG evidence, automatic, no UI
+```
+
+This uses only the supported Bukkit/Paper plugin-messaging API. There is no NMS
+access, no Netty access, no packet rewriting, no new dependency, and nothing is
+ever sent to the client, so it cannot prompt the client to do anything either.
+
+**Its absence proves nothing.** A client that does not send the channel is
+`CLEAN`, so this can never produce a false positive. **It is not live-verified.**
+It is marked `UNVERIFIED` because it is proven from bytecode, not from a client
+session, and it must not be promoted without a live run.
+
+### Passive identity does not kick by default
+
+`client-detection.passive.enforce` is `false`. A confirmed passive detection is
+reported in `/vac detections` and `/vac status`, but does not reach enforcement.
+The one channel proven so far belongs to Jade, a legitimate utility mod, so
+kicking players for it automatically would be a false positive. Operators who
+want it actionable must opt in explicitly.
+
+### Locale independence
+
+A probe that declares `identity-resolution: true` accepts **any** non-sentinel
+resolution of its own target-specific key, not only the recorded default-locale
+string. That matters because a client running a different locale renders a
+different string for the same key, and a naive exact-string match reports a
+present mod as `CLEAN`. The sentinel check still guarantees that a client
+without the key is never detected.
+
+### What is never evidence
+
+None of these can produce a detection on their own, by design and by test:
+
+- substring, prefix, or partial matches
+- generic visible text or arbitrary localized text
+- a guessed or merely plausible mod identifier
+- client brand, including Fabric brand
+- timing, latency, or absence of a response
+- a probe id or category that merely looks right
+
+`/vac probe <id>` shows, per probe, the evidence quality, the observable artifact,
+the expected clean and target behaviour, and whether the probe can reach
+`DETECTED` at all.
+
+### Client probe health
+
+Separately from detection, VAntiCheat records what it can actually observe about
+the probing channel: `READY`, `RESPONSIVE`, `UNSUPPORTED`, `UNRESPONSIVE`,
+`TIMED_OUT`, `INTERRUPTED`. This is transport and client readiness only. It is
+never a detection and says nothing about a player's hardware. See
+`/vac status verbose`.
+
+Server-observable movement and combat behavior detection is intentionally not
+part of the active product, and this patch did not add any.
 
 ## Automatic Detection Lifecycle
 
 Automatic join checks use the same `ProbeRegistry`, scan engine, transport,
-normalizer, evaluator, result aggregator, confirmation rules, and enforcement
+normalizer, evaluator, corroboration rules, confirmation rules, and enforcement
 policy as manual checks. The trigger differs; result interpretation does not.
 The listener classifies platform first, then applies the existing trusted-player
-exclusion, then admits a delayed scan from the registry's `enabled &&
-automatic` snapshot. Empty automatic selection creates no session or transport
+exclusion, then admits a delayed scan from the registry's **transport-gated**
+automatic snapshot. Empty automatic selection creates no session or transport
 operation. Bedrock is skipped; provider-pending `UNKNOWN` is retried a bounded
 number of times and then remains unprobed.
+
+### The transport capability gate
+
+Every probe declares its transport requirements as configuration metadata. It is
+never inferred from the probe id.
+
+```yaml
+transport: PASSIVE | INTERACTIVE
+```
+
+- `PASSIVE` reads an already-available signal. It opens no client UI, captures no
+  input, and is the only kind allowed to run unattended.
+- `INTERACTIVE` needs the client to open and submit UI, so it may capture
+  movement and input.
+
+An absent `transport` declaration **fails closed to `INTERACTIVE`**, so a
+newly added probe can never silently join the automatic path. Admission is:
+
+```text
+automatic-eligible = enabled && automatic && (transport == PASSIVE || auto-check.interactive)
+```
+
+With the shipped catalog every probe is `INTERACTIVE`, so the default automatic
+eligible set is empty and a join performs no probing at all. `/vac status` reports
+`Probes passive/interactive`, `Automatic-eligible`, and `Blocked-by-transport` so
+the reduction is visible rather than silent, and a startup warning lists every
+excluded probe.
+
+### Corroboration
+
+A scan's terminal status comes from explicit promotion rules, not from counting.
+A detection requires authoritative evidence for a specific probe: exact component
+identity, an exact configured response, or a declared identity resolution.
+Multiple weak signals are never summed; they are reported `UNCERTAIN` together
+with the reason they were not promoted. A `DETECTED` that somehow arrives without
+authoritative evidence is refused defensively. The confirmation pass is
+authoritative, so a single non-reproducing response cannot detect.
 
 The coordinator admits at most one automatic operation per UUID and enforces
 `max-concurrent`. It uses operation tickets so a late completion from an old
@@ -204,6 +393,7 @@ existence as proof of detection.
       display-name: "Example Client"
       key: "example.translation.key"
       mode: TRANSLATE
+      fallback: "⟦NO_EXAMPLE_CLIENT⟧"
       enabled: true
       manual: true
       automatic: false
@@ -211,7 +401,30 @@ existence as proof of detection.
       category: client
       source: "https://example.invalid/client/lang/en_us.json"
       notes: "Identifier source found; client response not live-verified."
+      transport: INTERACTIVE
+      identity-resolution: false
 ```
+
+`transport` and `identity-resolution` are the two fields that decide what a probe
+can actually do, and both must be chosen deliberately.
+
+**`transport`** defaults to `INTERACTIVE` when omitted, which is the safe default:
+an undeclared probe can never join the automatic path. Declare `PASSIVE` only for
+a probe served entirely from an already-available signal. A `PASSIVE` probe may
+not declare `expected-response` or `identity-resolution`, because it never
+performs the interactive round-trip those depend on.
+
+**`identity-resolution`** is the difference between a probe that can detect and
+one that can only report ambiguity. Set it to `true` only when the key is defined
+by the target mod's own translation table and no clean client can resolve it. A
+client that returns the fallback sentinel is then `CLEAN`; a client that returns
+anything else resolved that mod-only key, which is authoritative and independent
+of display locale. Leave it `false` when you have only found a plausible
+identifier, and the probe will honestly report `UNCERTAIN` instead of detecting.
+
+Before enabling a new probe, confirm against the mod's own language resource that
+the key exists, and record where you read it in `source`. An identifier's
+existence upstream is not proof of detection.
 
 Modes are `TRANSLATE`, `KEYBIND`, and `METEOR`. Use `TRANSLATE` for a known
 translation identifier, `KEYBIND` for a known keybind identifier, and `METEOR`
@@ -227,13 +440,17 @@ is independent of `enabled`: `VERIFIED` is reserved for exact probe evidence,
 regardless of verification state.
 
 `expected-response` is an optional exact response from the selected language or
-keybind mapping. Use it only when the resolved text is known; do not guess. When
-the response retains a structured Component identity, the evaluator compares
-that identity with the configured key. If only localized text is available and
-no exact expected response is configured, ambiguous translation/keybind text is
-reported as `UNCERTAIN` with `WEAK` evidence, not promoted to a confirmed
-detection. `METEOR` uses exact configured identity/response matches; unrelated
-responses are clean. Manual and automatic scans share the same evaluator.
+keybind mapping. Use it only when the resolved text is known; do not guess, and
+remember it only covers the locale you recorded. When the response retains a
+structured Component identity, the evaluator compares that identity with the
+configured key. If only localized text is available and neither an exact expected
+response nor a declared identity resolution applies, ambiguous translation or
+keybind text is reported as `UNCERTAIN` with `WEAK` evidence and is never
+promoted. `METEOR` uses exact configured identity and response matches. A
+response that resolves a key but does not match a recorded exact string is
+reported `UNCERTAIN`, not `CLEAN`, because the client clearly resolved something
+and claiming a clean bill of health would be a false negative. Manual and
+automatic scans share the same evaluator and the same corroboration rules.
 
 ## Probe Result Semantics
 
@@ -377,6 +594,29 @@ mvn -Dtest=ProbeEnginePerformanceStructureTest -Dsurefire.useFile=false test
 The model validates expected operation counts only. It cannot establish that
 client latency or wall-clock scan duration improved on a live server.
 
+### Player impact (the metric that matters)
+
+Measured on Java 21 in this repository, 2000 iterations after warm-up:
+
+| Operation | Cost | Player-facing effect |
+| --- | --- | --- |
+| Automatic join admission (42-probe catalog) | 0.08 µs | none; the passive probe is answered from evidence |
+| Automatic join, client UI opened | 0 | none |
+| Automatic join, world mutations | 0 | none |
+| Automatic join, player state changes | 0 | none |
+| Single probe evaluation | 0.04 µs | none |
+| Client-probe health record | 2.8 µs | none |
+
+With the shipped catalog and the default `auto-check.interactive: false`, an
+automatic join scan performs **no player-impacting work at all**: it opens no
+client screen, mutates no block, and applies no velocity, teleport, freeze, or
+movement lock. The plugin contains no mechanism that could do any of those; this
+is asserted by test and by static audit, not just by configuration.
+
+The only path that costs a player attention is an explicit interactive scan
+(`/vac check <player>`) or an operator who has deliberately enabled
+`auto-check.interactive`.
+
 ### Live scan timing (isolated Paper/Folia environment)
 
 Measured with protocol-level test clients on isolated localhost servers
@@ -395,7 +635,8 @@ range is not claimed universally.
 
 ### Probe verification status (P28 live real-client evidence)
 
-Catalog state: **3 VERIFIED, 33 UNVERIFIED, 2 DISABLED, 38 total**. A
+Catalog state: **3 VERIFIED, 39 UNVERIFIED, 5 DISABLED, 42 total**, of which
+**0 are passive and 38 are interactive**, and **3 are DETECTED-capable**. A
 `VERIFIED` definition is validated only for the client/Minecraft versions in
 its notes. A runtime `DETECTED` result is a single scan's outcome; `VERIFIED`
 is the definition's validation state, and `UNVERIFIED`/`DISABLED` are shown
@@ -407,15 +648,19 @@ expected-response match can produce `STRONG`/`DETECTED`; plain
 translation/keybind text without an exact match ceilings at `UNCERTAIN`
 (`WEAK`), which is never actionable: Xaero Minimap/World Map, Litematica, IPN
 probes, and Jade Config behave this way live. Disabled: `xaeros-minimap`
-(false-positive history) and `itemscroller` (unconfirmable identifier).
-Automatic join scanning keeps the no-false-positive 27-probe set: detectable
-manually does not imply appropriate automatically (utility-mod detections such
-as AppleSkin/Jade stay manual-only), and weak probes stay because they cost
-only bounded backoff time. A planned further real-client expansion (P30) was
-intentionally skipped, so broad client compatibility remains unverified. See
+(false-positive history), `itemscroller` (unconfirmable identifier), and
+`cezar-client` / `nova-client` / `forwarded` (requested, but no build available to
+confirm an identifier, so they carry a visibly marked placeholder key).
+Twenty-eight probes are configured `automatic: true`, but the transport gate
+excludes every `INTERACTIVE` one by default, leaving exactly one automatic probe:
+the passive `jade-network-handshake`. Detectable manually does not imply appropriate
+automatically (utility-mod detections such as AppleSkin/Jade stay manual-only), and
+weak probes are retained because an operator may run them deliberately with
+`/vac check`. That is a real reduction in automatic coverage and it is intentional:
+gameplay safety was chosen over automatic coverage. See
 per-probe `source`/`notes` in `client-detection.yml`,
 `/vac probe <probe-id>`, and
-[`docs/RELEASE-NOTES-0.2.0.md`](docs/RELEASE-NOTES-0.2.0.md).
+[`docs/RELEASE-NOTES-0.2.1.md`](docs/RELEASE-NOTES-0.2.1.md).
 
 Current automated validation:
 
@@ -435,7 +680,8 @@ controlled positive client validation requires real client sessions. See
 - [`src/main/resources/config.yml`](src/main/resources/config.yml)
 - [`src/main/resources/client-detection.yml`](src/main/resources/client-detection.yml)
 - [`src/main/resources/messages.yml`](src/main/resources/messages.yml)
-- [`docs/RELEASE-NOTES-0.2.0.md`](docs/RELEASE-NOTES-0.2.0.md) (release candidate
-  notes, migration notes, and known limitations)
+- [`docs/RELEASE-NOTES-0.2.1.md`](docs/RELEASE-NOTES-0.2.1.md) (current release notes,
+  migration notes, and known limitations)
+- [`CHANGELOG.md`](CHANGELOG.md)
 
 License: MIT.

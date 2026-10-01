@@ -3,6 +3,7 @@ package site.vackstudio.vanticheat.diagnostics;
 import site.vackstudio.vanticheat.config.ClientDetectionConfig;
 import site.vackstudio.vanticheat.core.VAntiCheatCore;
 import site.vackstudio.vanticheat.detection.probe.CheckHacksClientDetectionModule;
+import site.vackstudio.vanticheat.detection.probe.ClientSignalCollector;
 import site.vackstudio.vanticheat.detection.probe.ProbeDiagnostics;
 import site.vackstudio.vanticheat.detection.probe.ProbeRegistry;
 import site.vackstudio.vanticheat.lunar.LunarClientService;
@@ -29,7 +30,9 @@ public final class VAntiCheatDiagnostics {
     public record Configuration(boolean loaded, boolean detectionEnabled, long registryVersion,
                                 int totalProbes, int enabledProbes, int manualProbes,
                                 int automaticProbes, int verifiedProbes, int unverifiedProbes,
-                                Reload lastReload) { }
+                                int automaticEligibleProbes, int detectedCapableProbes,
+                                int interactiveAutomaticProbes, int passiveProbes,
+                                boolean passiveEnforce, Reload lastReload) { }
 
     public record Automatic(boolean enabled, int active, int capacity, long admitted,
                             long started, long released, long skippedAdmissions, long failures) { }
@@ -47,11 +50,17 @@ public final class VAntiCheatDiagnostics {
                            long detections, long cleans, long protectedResults, long completedScans,
                            long lastScanDurationMillis, long averageScanDurationMillis,
                            List<ProbeDiagnostics.ActiveScan> activeScanDetails,
-                           List<ProbeDiagnostics.RecentScan> recentScans) {
+                           List<ProbeDiagnostics.RecentScan> recentScans,
+                           ProbeDiagnostics.Coverage coverage,
+                           Map<String, Long> conclusionReasons,
+                           String probeHealth, String probeHealthDetail,
+                           String passiveObserver, String passiveSignals, String passiveChannels) {
         public Snapshot {
             results = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(results));
             activeScanDetails = List.copyOf(activeScanDetails);
             recentScans = List.copyOf(recentScans);
+            conclusionReasons = java.util.Collections.unmodifiableMap(
+                    new java.util.LinkedHashMap<>(conclusionReasons));
         }
     }
 
@@ -117,9 +126,17 @@ public final class VAntiCheatDiagnostics {
         Reload reload = lastReload.get();
         if (reload == null) reload = new Reload("NEVER", null, "No reload attempted", registryVersion.getAsLong(),
                 module != null && module.isStarted());
+        boolean interactiveAutomatic = config != null && config.interactiveAutomatic();
         Configuration configStatus = new Configuration(configurationLoaded.getAsBoolean(), config != null && config.enabled(),
                 registryVersion.getAsLong(), registry.size(), registry.enabledCount(), registry.manualCount(),
-                registry.automaticCount(), registry.verifiedCount(), registry.unverifiedCount(), reload);
+                registry.automaticCount(), registry.verifiedCount(), registry.unverifiedCount(),
+                registry.automaticEligibleCount(interactiveAutomatic),
+                registry.detectedCapableCount(interactiveAutomatic),
+                (int) registry.automatic().stream()
+                        .filter(probe -> probe.transport().opensClientUi()).count(),
+                registry.passiveCount(),
+                config != null && config.passiveEnforce(),
+                reload);
         Automatic automatic = new Automatic(config != null && config.enabled() && config.autoCheckOnJoin()
                 && module != null && module.isStarted(),
                 auto.active(), auto.capacity(), auto.admitted(), auto.started(), auto.released(),
@@ -133,13 +150,61 @@ public final class VAntiCheatDiagnostics {
                 engineState, results, probeStats.timeouts(), probeStats.errors(), probeStats.detections(),
                 probeStats.cleans(), probeStats.protectedResults(), probeStats.completedScans(),
                 probeStats.lastDurationMillis(), probeStats.averageDurationMillis(), probeStats.activeScans(),
-                probeStats.recentScans());
+                probeStats.recentScans(), probeStats.coverage(), probeStats.conclusionReasons(),
+                healthSummary(module), healthDetail(module),
+                passiveObserverState(module), passiveSignalSummary(module), passiveChannelSummary(module));
+    }
+
+    private static String passiveObserverState(CheckHacksClientDetectionModule module) {
+        return module == null ? "UNAVAILABLE" : module.signals().state().name();
+    }
+
+    private static String passiveSignalSummary(CheckHacksClientDetectionModule module) {
+        if (module == null) return "UNAVAILABLE";
+        ClientSignalCollector.Snapshot snapshot = module.signals().snapshot();
+        return "observed=" + snapshot.observed() + " trackedPlayers=" + snapshot.trackedPlayers()
+                + " dropped=" + snapshot.dropped() + " rejectedStale=" + snapshot.rejected();
+    }
+
+    private static String passiveChannelSummary(CheckHacksClientDetectionModule module) {
+        if (module == null) return "none";
+        return module.signals().snapshot().perChannel().isEmpty()
+                ? "none" : module.signals().snapshot().perChannel().toString();
+    }
+
+    private static String healthSummary(CheckHacksClientDetectionModule module) {
+        if (module == null) return "UNAVAILABLE";
+        StringBuilder summary = new StringBuilder();
+        for (var health : site.vackstudio.vanticheat.detection.probe.ClientProbeHealth.values()) {
+            if (summary.length() > 0) summary.append('/');
+            summary.append(health.name()).append('=')
+                    .append(module.probeHealth().snapshot().count(health));
+        }
+        return summary.toString();
+    }
+
+    private static String healthDetail(CheckHacksClientDetectionModule module) {
+        if (module == null) return "UNAVAILABLE";
+        var snapshot = module.probeHealth().snapshot();
+        return "tracked=" + snapshot.trackedPlayers() + " observations=" + snapshot.observations()
+                + " expired=" + snapshot.expiredEntries();
     }
 
     public List<ProbeDiagnostics.RecentScan> recentDetections() {
         return snapshot().recentScans().stream()
                 .filter(scan -> scan.result() == site.vackstudio.vanticheat.detection.DetectionStatus.DETECTED)
                 .toList();
+    }
+
+    public boolean interactiveAutomatic() {
+        ClientDetectionConfig config = configuration.get();
+        return config != null && config.interactiveAutomatic();
+    }
+
+    /** Derived, never hard-coded: the matrix can only report declared capabilities. */
+    public site.vackstudio.vanticheat.detection.probe.ProbeValidityMatrix probeValidityMatrix() {
+        return new site.vackstudio.vanticheat.detection.probe.ProbeValidityMatrix(
+                probeRegistry(), interactiveAutomatic());
     }
 
     public ProbeRegistry probeRegistry() {
@@ -172,7 +237,8 @@ public final class VAntiCheatDiagnostics {
         java.util.EnumMap<site.vackstudio.vanticheat.detection.DetectionStatus, Long> counts =
                 new java.util.EnumMap<>(site.vackstudio.vanticheat.detection.DetectionStatus.class);
         for (var status : site.vackstudio.vanticheat.detection.DetectionStatus.values()) counts.put(status, 0L);
-        return new ProbeDiagnostics.Snapshot(counts, 0, 0, 0, List.of(), List.of());
+        return new ProbeDiagnostics.Snapshot(counts, 0, 0, 0, List.of(), List.of(),
+                ProbeDiagnostics.Coverage.empty(), Map.of());
     }
 
     private record HealthResult(Health health, String reason) { }

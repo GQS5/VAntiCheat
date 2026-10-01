@@ -16,6 +16,8 @@ public final class ProbeRegistry {
     private final List<ProbeDefinition> automatic;
     private final List<ProbeDefinition> verified;
     private final List<ProbeDefinition> unverified;
+    private final List<ProbeDefinition> passive;
+    private final List<ProbeDefinition> interactive;
 
     private ProbeRegistry(Collection<ProbeDefinition> definitions) {
         LinkedHashMap<String, ProbeDefinition> indexed = new LinkedHashMap<>();
@@ -32,6 +34,8 @@ public final class ProbeRegistry {
         automatic = all.stream().filter(probe -> probe.enabled() && probe.automatic()).toList();
         verified = all.stream().filter(probe -> probe.verificationStatus() == ProbeVerificationStatus.VERIFIED).toList();
         unverified = all.stream().filter(probe -> probe.verificationStatus() != ProbeVerificationStatus.VERIFIED).toList();
+        passive = all.stream().filter(probe -> probe.transport() == ProbeTransportMode.PASSIVE).toList();
+        interactive = all.stream().filter(probe -> probe.transport() == ProbeTransportMode.INTERACTIVE).toList();
     }
 
     public static ProbeRegistry of(Collection<ProbeDefinition> definitions) {
@@ -60,16 +64,52 @@ public final class ProbeRegistry {
 
     public List<ProbeDefinition> manual() { return manual; }
 
+    /** Probes configured for automatic use, before the transport capability gate. */
     public List<ProbeDefinition> automatic() { return automatic; }
+
+    /**
+     * Probes that may actually run as a background automatic check. By default only
+     * {@link ProbeTransportMode#PASSIVE} probes qualify, so an automatic scan can never
+     * open client UI and interrupt normal gameplay.
+     */
+    public List<ProbeDefinition> automaticEligible(boolean interactiveAutomaticEnabled) {
+        return automatic.stream()
+                .filter(probe -> probe.automaticEligible(interactiveAutomaticEnabled))
+                .toList();
+    }
 
     public List<ProbeDefinition> verified() { return verified; }
 
     public List<ProbeDefinition> unverified() { return unverified; }
 
+    public List<ProbeDefinition> passive() { return passive; }
+
+    public List<ProbeDefinition> interactive() { return interactive; }
+
+    public List<ProbeDefinition> detectedCapable() {
+        return all.stream().filter(ProbeDefinition::detectedCapable).toList();
+    }
+
+    public List<ProbeDefinition> detectedCapable(boolean interactiveAutomaticEnabled) {
+        return automaticEligible(interactiveAutomaticEnabled).stream()
+                .filter(ProbeDefinition::detectedCapable).toList();
+    }
+
     public int size() { return all.size(); }
     public int enabledCount() { return enabled.size(); }
     public int manualCount() { return manual.size(); }
     public int automaticCount() { return automatic.size(); }
+    public int automaticEligibleCount(boolean interactiveAutomaticEnabled) {
+        return automaticEligible(interactiveAutomaticEnabled).size();
+    }
     public int verifiedCount() { return verified.size(); }
     public int unverifiedCount() { return unverified.size(); }
+    public int passiveCount() { return passive.size(); }
+    public int interactiveCount() { return interactive.size(); }
+    public int detectedCapableCount() { return detectedCapable().size(); }
+
+    /** Probes that can reach DETECTED and are allowed to run automatically. */
+    public int detectedCapableCount(boolean interactiveAutomaticEnabled) {
+        return detectedCapable(interactiveAutomaticEnabled).size();
+    }
 }

@@ -1,5 +1,30 @@
-# Client/mod identity probes. UNVERIFIED means the exact probe has not been
-# validated against a live client. New catalog entries below are manual-only.
+# Client/mod identity probes.
+#
+# HOW DETECTION ACTUALLY WORKS, AND WHAT IT CANNOT DO
+#
+# Every probe in this catalog is delivered the same way: the server writes a translatable
+# component onto a temporary sign, opens that sign's editor on the client, and reads the
+# sign text the client submits back. The client can only answer by opening a screen and
+# pressing done. That is an INTERACTIVE transport.
+#
+# Consequences you must know before enabling anything here:
+#
+#   * There is no non-interactive, server-observable per-mod identity signal available on
+#     Paper 1.21.11 for Fabric or vanilla clients. Reading one would need a client-side mod
+#     or a packet-level library, which this plugin deliberately does not use. The sign
+#     round-trip is therefore the only mechanism, and it is interactive by nature.
+#   * Because an interactive probe captures the player's client UI and interrupts normal
+#     movement, auto-check.interactive defaults to false and no INTERACTIVE probe runs
+#     automatically. An automatic join scan opens no client UI at all.
+#   * Only a translation key that the target mod itself defines is authoritative. A probe
+#     can report DETECTED only if it declares identity-resolution: true (or an exact
+#     expected-response). Without that declaration, ambiguous localized text is reported
+#     UNCERTAIN and is never promoted, because this protocol carries plain strings and
+#     cannot attribute an unknown translation to a specific mod.
+#   * Client brand, Fabric brand, timing, and silence are never evidence of cheating.
+#
+# UNVERIFIED means the exact probe has not been validated against a live client. It stays
+# enabled or manual-only and is honestly labelled; it is not a claim of coverage.
 client-detection:
   enabled: true
   double-check: true
@@ -19,11 +44,35 @@ client-detection:
   short-timeout-after-consecutive-timeouts: 2
   # A response completes the prior batch; the next batch can start without an extra tick.
   between-probe-ticks: 0
+  # Passive observation (P33). Uses only the supported Paper plugin-messaging API: Paper
+  # dispatches every inbound custom payload to the Bukkit Messenger, and a listener
+  # registered for a declared channel receives it. No NMS, no Netty, no dependency, and
+  # nothing is ever sent to the client, so this cannot prompt the client to do anything.
+  #
+  # passive.enforce defaults to false. Passive identity evidence is authoritative about
+  # which mod is present, but the one channel proven so far belongs to a legitimate
+  # utility mod, so a confirmed passive detection is reported and never kicks by default.
+  passive:
+    enforce: false
+
   auto-check:
     on-join: true
     delay-ticks: 20
     first-join-only: false
     max-concurrent: 32
+    # Every probe in this catalog uses the sign round-trip, so every probe declares
+    # transport: INTERACTIVE: the server must open a sign editor and the client must
+    # submit it before any response can be observed.
+    #
+    # That captures the player's client UI and interrupts normal movement, so it is
+    # NOT safe to run unattended on join. With this false (the default) no INTERACTIVE
+    # probe may run automatically and an automatic join scan opens no client UI at all.
+    # Run the interactive probes explicitly with /vac check <player>, where the operator
+    # accepts the UI cost for that player.
+    #
+    # Set this to true only if you accept that every automatic check will repeatedly
+    # open a sign editor on the player's screen and block their movement while it waits.
+    interactive: false
   probes:
     # Client / hacked-client families
     meteor-client:
@@ -36,8 +85,59 @@ client-detection:
       automatic: true
       verification: VERIFIED
       category: client
+      transport: INTERACTIVE
+      identity-resolution: true
       source: "Meteor Client 1.21.11-86 live validation"
       notes: "Verified on Minecraft 1.21.11 / Meteor Client 1.21.11-86: 3 automatic + 1 manual DETECTED (STRONG, double-check confirmed, KICK enforced exactly once per session), 6 clean baselines (3 vanilla + 3 clean Fabric, 28 CLEAN each), 0 cross-probe collisions."
+      # P32: the recorded en_us string only covers the default locale. Because this key is
+      # defined by Meteor itself, any non-fallback resolution of it is authoritative and
+      # locale-independent. A client that cannot resolve it still echoes the sentinel.
+    # ---------------------------------------------------------------------
+    # P33: operator-requested clients with NO artifact available to verify.
+    #
+    # These three are recorded so they are visible in /vac probes and ready to enable, but
+    # they ship DISABLED because no client jar was available to confirm a real translation
+    # key or a real server-bound channel. The key field below is an explicit placeholder,
+    # not a claimed identifier, following the P29 itemscroller precedent.
+    #
+    # Do NOT enable them as-is: a placeholder key resolves to nothing on a real client, so
+    # the probe would silently report CLEAN forever and give false assurance. To promote
+    # one, extract the identifier from the client build and replace the key, then record
+    # where it was read in `source`.
+    # ---------------------------------------------------------------------
+    cezar-client:
+      display-name: "Cezar Client"
+      key: "cezar.client.unconfirmed-identifier"
+      mode: TRANSLATE
+      enabled: false
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: client
+      transport: INTERACTIVE
+      notes: "DISABLED: operator-requested, but no Cezar Client build was available to confirm an identifier. The key is a placeholder, not a claimed translation key. Verify against the client jar before enabling."
+    nova-client:
+      display-name: "Nova Client"
+      key: "nova.client.unconfirmed-identifier"
+      mode: TRANSLATE
+      enabled: false
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: client
+      transport: INTERACTIVE
+      notes: "DISABLED: operator-requested, but no Nova Client build was available to confirm an identifier. The key is a placeholder, not a claimed translation key. Verify against the client jar before enabling."
+    forwarded:
+      display-name: "Forwarded"
+      key: "forwarded.client.unconfirmed-identifier"
+      mode: TRANSLATE
+      enabled: false
+      manual: true
+      automatic: false
+      verification: UNVERIFIED
+      category: client
+      transport: INTERACTIVE
+      notes: "DISABLED: operator-requested, but no Forwarded build was available to confirm an identifier. The key is a placeholder, not a claimed translation key. Verify against the client jar before enabling."
     liquidbounce:
       display-name: "LiquidBounce"
       key: "liquidbounce.module.killaura.name"
@@ -47,6 +147,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     freecam:
       display-name: "Freecam"
       key: "key.freecam.toggle"
@@ -56,6 +157,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     wurst:
       display-name: "Wurst Client"
       key: "key.wurst.zoom"
@@ -65,6 +167,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     bleachhack:
       display-name: "BleachHack"
       key: "bleachhack.module.killaura"
@@ -74,6 +177,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     aristois:
       display-name: "Aristois"
       key: "emc.module.killaura.name"
@@ -83,6 +187,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     coffee:
       display-name: "Coffee Client"
       key: "coffee.module.killaura.name"
@@ -92,6 +197,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     lumina:
       display-name: "Lumina"
       key: "key.lumina.open_click_gui"
@@ -101,6 +207,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
 
     # Minimap / maps. Xaero's Minimap remains disabled pending validation.
     xaeros-minimap:
@@ -112,6 +219,7 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: map
+      transport: INTERACTIVE
       notes: "Disabled to avoid a known legitimate-client false positive."
     xaeros-worldmap:
       display-name: "Xaero's World Map"
@@ -123,6 +231,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: map
+      transport: INTERACTIVE
       source: "Xaero WorldMap 1.46.0 assets/xaeroworldmap/lang/en_us.json"
       notes: "P28: gui.xaero_worldmap does not exist in the mod jar; identifier taken from the real lang file. Live: WorldMap 1.46.0 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
 
@@ -137,6 +246,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "Litematica 0.26.11 assets/litematica/lang/en_us.json"
       notes: "P28: litematica.hotkey.name.openmainmenuscreen does not exist in the mod jar; identifier taken from the real lang file. Live: Litematica 0.26.11 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
     itemscroller:
@@ -148,6 +258,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       notes: "P29 DISABLED: identifier matches the fabricated <mod>.hotkey.name.* template (cf. P28 litematica correction); masa's real convention is <mod>.config.hotkeys.name.* per in-hand Litematica 0.26.11 jar. No Item Scroller jar available to confirm a real identifier; do not invent a replacement."
     apple-skin:
       display-name: "AppleSkin"
@@ -159,6 +270,8 @@ client-detection:
       automatic: false
       verification: VERIFIED
       category: utility
+      transport: INTERACTIVE
+      identity-resolution: true
       source: "AppleSkin 3.0.8 live validation (assets/appleskin/lang/en_us.json)"
       notes: "Verified on Minecraft 1.21.11 / AppleSkin 3.0.8: 3 manual DETECTED (STRONG, double-check confirmed), 3 vanilla manual CLEAN. Tested in a combined AppleSkin+Jade instance; the submitted AppleSkin identifier can only originate from AppleSkin translations."
     inventory-profiles-next:
@@ -170,6 +283,7 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
       notes: "Manual-only identity probe. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
     inventory-profiles-next-settings:
@@ -181,6 +295,7 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
       notes: "Independent UI translation identifier. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
     inventory-profiles-next-hotkeys:
@@ -192,6 +307,7 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
       notes: "Independent UI translation identifier. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
     inventory-profiles-next-refill:
@@ -203,6 +319,7 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "https://github.com/blackd/Inventory-Profiles/blob/all-in-one/platforms/shared-1.20.5%2B/src/main/resources/assets/inventoryprofilesnext/lang/en_us.json"
       notes: "Independent UI translation identifier. Live P28: IPN 2.2.6 -> UNCERTAIN (1 run), vanilla -> CLEAN (1 run); TRANSLATE ceiling, cannot DETECT."
     emi-recipe-viewer:
@@ -214,6 +331,7 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "https://github.com/emilyploszaj/emi/blob/1.21/xplat/src/main/resources/assets/emi/lang/en_us.json"
       notes: "Keybind is present in upstream 1.21 English language assets; not live-verified."
     emi-config:
@@ -225,6 +343,7 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "https://github.com/emilyploszaj/emi/blob/1.21/xplat/src/main/resources/assets/emi/lang/en_us.json"
       notes: "Config screen translation from upstream 1.21 English language assets; not live-verified."
     jade-config:
@@ -236,8 +355,44 @@ client-detection:
       automatic: false
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
       source: "https://github.com/Snownee/Jade/blob/1.21.5-fabric/src/main/resources/assets/jade/lang/en_us.json"
       notes: "Keybind is present in upstream English language assets; not live-verified."
+    # P33 PASSIVE probe. Unlike every other probe in this catalog this one is not delivered
+    # through the sign editor at all.
+    #
+    # Proven chain (from the real mod jar and the real Paper 1.21.11 server jar):
+    #   Jade registers ClientPlayConnectionEvents.JOIN and, in that handler, unconditionally
+    #   constructs ClientHandshakePacket and calls ClientPlayNetworking.send(...)  [Jade jar]
+    #   -> C2S custom payload on channel "jade:client_handshake"
+    #   -> the server has no codec for that channel, so it decodes as DiscardedPayload,
+    #      preserving the channel id and the raw bytes
+    #   -> ServerCommonPacketListenerImpl.handleCustomPayload calls
+    #      CraftServer.getMessenger().dispatchIncomingMessage(conn, "jade:client_handshake", data)
+    #   -> StandardMessenger dispatches to listeners registered for that exact channel
+    #   -> this probe
+    #
+    # Consequences: the client sends it on join with no user interaction, so observing it
+    # opens no UI, captures no input, and cannot interrupt movement. Absence of the channel
+    # proves nothing and stays CLEAN, so this can never produce a false positive.
+    #
+    # ENFORCEMENT: a confirmed passive detection does NOT reach enforcement unless
+    # client-detection.passive.enforce is set to true. Jade is a legitimate utility mod, so
+    # kicking players for it by default would be a false positive.
+    jade-network-handshake:
+      display-name: "Jade (network handshake)"
+      key: "jade:client_handshake"
+      mode: TRANSLATE
+      enabled: true
+      manual: true
+      automatic: true
+      verification: UNVERIFIED
+      category: utility
+      source: "Jade 21.1.6 Fabric jar (ClientProxy.onInitializeClient -> ClientPlayConnectionEvents.JOIN -> ClientPlayNetworking.send) + Paper 1.21.11 ServerCommonPacketListenerImpl.handleCustomPayload -> Messenger.dispatchIncomingMessage"
+      notes: "UNVERIFIED: proven from the mod bytecode and the server bytecode, not from a live client session. Automatic and passive: the client emits this channel on join with no user interaction. Do not promote to VERIFIED without a live run."
+      transport: PASSIVE
+      passive-channel: "jade:client_handshake"
+
     jade-config-screen:
       display-name: "Jade (Config Screen)"
       key: "gui.jade.configuration"
@@ -248,6 +403,8 @@ client-detection:
       automatic: false
       verification: VERIFIED
       category: utility
+      transport: INTERACTIVE
+      identity-resolution: true
       source: "Jade 21.1.6 live validation (assets/jade/lang/en_us.json)"
       notes: "Verified on Minecraft 1.21.11 / Jade 21.1.6: 3 manual DETECTED (STRONG, double-check confirmed), 3 vanilla manual CLEAN. Tested in a combined AppleSkin+Jade instance; the submitted Jade Configuration identifier can only originate from Jade translations."
 
@@ -262,6 +419,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     autofish:
       display-name: "AutoFish"
       key: "key.autofish.open_gui"
@@ -271,6 +429,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     autoswitch:
       display-name: "AutoSwitch"
       key: "key.autoswitch.toggle"
@@ -280,6 +439,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     xray-fabric:
       display-name: "XRay (Fabric)"
       key: "xray.config.toggle"
@@ -289,6 +449,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     chestesp:
       display-name: "ChestESP"
       key: "key.chestesp.toggle"
@@ -298,6 +459,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     killaura-fabric:
       display-name: "KillAura (Fabric)"
       key: "key.killaura"
@@ -307,6 +469,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: client
+      transport: INTERACTIVE
     world-downloader:
       display-name: "World Downloader"
       key: "key.wdl.startStop"
@@ -316,6 +479,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     autoclicker-fabric:
       display-name: "AutoClicker (Fabric)"
       key: "autoclicker-fabric.hud.holding"
@@ -325,6 +489,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     antiafk:
       display-name: "AntiAFK"
       key: "key.antiafk.toggle"
@@ -334,6 +499,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     auto-clicker-mc:
       display-name: "Auto Clicker (p1k0chu)"
       key: "key.auto-clicker_.toggle"
@@ -343,6 +509,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
 
     # Other client utility / addon identifiers
     trouser-streak:
@@ -354,6 +521,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     ui-utils:
       display-name: "Ui Utils"
       key: "key.ui-utils.restore_screen"
@@ -363,6 +531,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     seeedcrackerx:
       display-name: "SeedCrackerX"
       key: "cracker.already"
@@ -372,6 +541,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     simple-world-downloader:
       display-name: "Simple World Downloader"
       key: "swd.screen.config.title"
@@ -381,6 +551,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     trouser-streak-newchunks:
       display-name: "Trouser Streak (NewerNewChunks)"
       key: "module.trouser-streak.NewerNewChunks.description"
@@ -390,6 +561,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     trouser-streak-anhero:
       display-name: "Trouser Streak (AnHero)"
       key: "module.trouser-streak.AnHero.description"
@@ -399,6 +571,7 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE
     glazed:
       display-name: "Glazed"
       key: "addon.glazed.name"
@@ -408,3 +581,4 @@ client-detection:
       automatic: true
       verification: UNVERIFIED
       category: utility
+      transport: INTERACTIVE

@@ -697,7 +697,7 @@ class CheckHacksClientDetectionModuleTest {
     private static CheckHacksClientDetectionModule adaptiveModule(List<ProbeDefinition> probes,
             ClientProbeTransport transport, boolean doubleCheck) {
         ClientDetectionConfig config = new ClientDetectionConfig(true, doubleCheck, 40, 0,
-                ProbeRegistry.of(probes), false, 1, false, 32, 10, 2);
+                ProbeRegistry.of(probes), false, 1, false, 32, 10, 2, true);
         CheckHacksClientDetectionModule module = new CheckHacksClientDetectionModule(config, transport);
         module.initialize(new DetectionModuleContext(
                 new PlatformContext(Platform.PAPER, new ImmediateScheduler()),
@@ -706,9 +706,15 @@ class CheckHacksClientDetectionModuleTest {
         return module;
     }
 
+    /**
+     * Enables INTERACTIVE automatic probes so these engine-parity tests exercise the shared
+     * manual/automatic path. The shipped default leaves the opt-in off; the gameplay-safety
+     * gate itself is asserted in TransportCapabilityPolicyTest.
+     */
     private static CheckHacksClientDetectionModule module(List<ProbeDefinition> probes,
                                                            ClientProbeTransport transport, boolean doubleCheck) {
-        ClientDetectionConfig config = new ClientDetectionConfig(true, doubleCheck, 20, 0, probes);
+        ClientDetectionConfig config = new ClientDetectionConfig(true, doubleCheck, 20, 0,
+                ProbeRegistry.of(probes), true, 1, false, 32, 20, 2, true);
         CheckHacksClientDetectionModule module = new CheckHacksClientDetectionModule(config, transport);
         module.initialize(new DetectionModuleContext(
                 new PlatformContext(Platform.PAPER, new ImmediateScheduler()),

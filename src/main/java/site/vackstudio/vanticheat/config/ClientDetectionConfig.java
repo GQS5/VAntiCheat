@@ -3,6 +3,7 @@ package site.vackstudio.vanticheat.config;
 import site.vackstudio.vanticheat.detection.probe.ProbeDefinition;
 import site.vackstudio.vanticheat.detection.probe.ProbeMode;
 import site.vackstudio.vanticheat.detection.probe.ProbeRegistry;
+import site.vackstudio.vanticheat.detection.probe.ProbeTransportMode;
 import site.vackstudio.vanticheat.detection.probe.ProbeVerificationStatus;
 
 import java.io.IOException;
@@ -27,11 +28,13 @@ public record ClientDetectionConfig(
         boolean firstJoinOnly,
         int maxConcurrentAutoChecks,
         long shortTimeoutTicks,
-        int shortTimeoutAfterConsecutiveTimeouts) {
+        int shortTimeoutAfterConsecutiveTimeouts,
+        boolean interactiveAutomatic,
+        boolean passiveEnforce) {
     public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
                                  long betweenProbeTicks, List<ProbeDefinition> probes) {
         this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, ProbeRegistry.of(probes),
-                false, 1, false, 32, timeoutTicks, 2);
+                false, 1, false, 32, timeoutTicks, 2, false);
     }
 
     public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
@@ -41,7 +44,7 @@ public record ClientDetectionConfig(
                                  int maxConcurrentAutoChecks) {
         this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, ProbeRegistry.of(probes),
                 autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly, maxConcurrentAutoChecks,
-                timeoutTicks, 2);
+                timeoutTicks, 2, false);
     }
 
     public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
@@ -50,7 +53,28 @@ public record ClientDetectionConfig(
                                  boolean firstJoinOnly, int maxConcurrentAutoChecks) {
         this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, registry,
                 autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly, maxConcurrentAutoChecks,
-                timeoutTicks, 2);
+                timeoutTicks, 2, false);
+    }
+
+    public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
+                                 long betweenProbeTicks, ProbeRegistry registry,
+                                 boolean autoCheckOnJoin, long autoCheckDelayTicks,
+                                 boolean firstJoinOnly, int maxConcurrentAutoChecks,
+                                 long shortTimeoutTicks, int shortTimeoutAfterConsecutiveTimeouts) {
+        this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, registry,
+                autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly, maxConcurrentAutoChecks,
+                shortTimeoutTicks, shortTimeoutAfterConsecutiveTimeouts, false, false);
+    }
+
+    public ClientDetectionConfig(boolean enabled, boolean doubleCheck, long timeoutTicks,
+                                 long betweenProbeTicks, ProbeRegistry registry,
+                                 boolean autoCheckOnJoin, long autoCheckDelayTicks,
+                                 boolean firstJoinOnly, int maxConcurrentAutoChecks,
+                                 long shortTimeoutTicks, int shortTimeoutAfterConsecutiveTimeouts,
+                                 boolean interactiveAutomatic) {
+        this(enabled, doubleCheck, timeoutTicks, betweenProbeTicks, registry,
+                autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly, maxConcurrentAutoChecks,
+                shortTimeoutTicks, shortTimeoutAfterConsecutiveTimeouts, interactiveAutomatic, false);
     }
 
     public ClientDetectionConfig {
@@ -111,11 +135,14 @@ public record ClientDetectionConfig(
         long autoCheckDelayTicks = 1;
         boolean firstJoinOnly = false;
         int maxConcurrentAutoChecks = 32;
+        boolean interactiveAutomatic = false;
+        boolean passiveEnforce = false;
         boolean sawRoot = false;
         boolean inRoot = false;
         boolean inProbes = false;
         boolean inAutoCheck = false;
         boolean inAutoProbeIds = false;
+        boolean inPassive = false;
         boolean legacyAutoProbeIdsConfigured = false;
         String currentId = null;
         Map<String, Map<String, String>> rawProbes = new LinkedHashMap<>();
@@ -144,7 +171,16 @@ public record ClientDetectionConfig(
                     currentId = null;
                     continue;
                 }
+                if (trimmed.equals("passive:")) {
+                    inProbes = false;
+                    inAutoCheck = false;
+                    inPassive = true;
+                    inAutoProbeIds = false;
+                    currentId = null;
+                    continue;
+                }
                 if (trimmed.equals("auto-check:")) {
+                    inPassive = false;
                     inProbes = false;
                     inAutoCheck = true;
                     inAutoProbeIds = false;
@@ -153,6 +189,7 @@ public record ClientDetectionConfig(
                 }
                 inProbes = false;
                 inAutoCheck = false;
+                inPassive = false;
                 inAutoProbeIds = false;
                 String[] pair = pair(trimmed);
                 switch (pair[0]) {
@@ -164,6 +201,15 @@ public record ClientDetectionConfig(
                             shortTimeoutAfterConsecutiveTimeouts = Integer.parseInt(unquote(pair[1]));
                     case "between-probe-ticks" -> betweenProbeTicks = Long.parseLong(unquote(pair[1]));
                     default -> { }
+                }
+                continue;
+            }
+            if (inPassive) {
+                if (indent == 4) {
+                    String[] pair = pair(trimmed);
+                    if (pair[0].equals("enforce")) {
+                        passiveEnforce = bool(pair[1], "client-detection.passive.enforce");
+                    }
                 }
                 continue;
             }
@@ -185,6 +231,8 @@ public record ClientDetectionConfig(
                         case "delay-ticks" -> autoCheckDelayTicks = Long.parseLong(unquote(pair[1]));
                         case "first-join-only" -> firstJoinOnly = bool(pair[1], "client-detection.auto-check.first-join-only");
                         case "max-concurrent" -> maxConcurrentAutoChecks = Integer.parseInt(unquote(pair[1]));
+                        case "interactive" -> interactiveAutomatic = bool(pair[1],
+                                "client-detection.auto-check.interactive");
                         default -> { }
                     }
                     continue;
@@ -250,14 +298,28 @@ public record ClientDetectionConfig(
                         + ".verification\nexpected=VERIFIED with non-blank notes and source\nactual=missing evidence metadata");
             }
             String expectedResponse = unquote(values.getOrDefault("expected-response", ""));
+            // Transport is declared metadata, never inferred from the probe id. An absent
+            // declaration fails closed to INTERACTIVE so it can never silently join the
+            // automatic path and capture the player's client UI.
+            ProbeTransportMode transport = values.containsKey("transport")
+                    ? enumValue(values, "transport", ProbeTransportMode.class, path + ".transport")
+                    : ProbeTransportMode.INTERACTIVE;
+            boolean identityResolution = bool(values.getOrDefault("identity-resolution", "false"),
+                    path + ".identity-resolution");
+            String passiveChannel = unquote(values.getOrDefault("passive-channel", ""));
+            if (identityResolution && transport != ProbeTransportMode.INTERACTIVE) {
+                throw new IllegalArgumentException("file=client-detection.yml\npath=" + path
+                        + ".identity-resolution\nexpected=INTERACTIVE transport\nactual=PASSIVE");
+            }
             probes.add(new ProbeDefinition(entry.getKey(), displayName, key, mode,
                     fallback, probeEnabled, manual, automatic, status, category, source, notes,
-                    expectedResponse));
+                    expectedResponse, transport, identityResolution, passiveChannel));
         }
         if (shortTimeoutTicks < 0) shortTimeoutTicks = timeoutTicks;
         return new ClientDetectionConfig(enabled, doubleCheck, timeoutTicks, betweenProbeTicks,
                 ProbeRegistry.of(probes), autoCheckOnJoin, autoCheckDelayTicks, firstJoinOnly,
-                maxConcurrentAutoChecks, shortTimeoutTicks, shortTimeoutAfterConsecutiveTimeouts);
+                maxConcurrentAutoChecks, shortTimeoutTicks, shortTimeoutAfterConsecutiveTimeouts,
+                interactiveAutomatic, passiveEnforce);
     }
 
     private static String[] pair(String value) {
@@ -333,8 +395,42 @@ public record ClientDetectionConfig(
         return value;
     }
 
+    /** Probes configured for automatic use, before the transport capability gate. */
     public List<ProbeDefinition> automaticProbes() {
         return registry.automatic();
+    }
+
+    /**
+     * Probes that may actually run as a background automatic check. Unless the operator
+     * explicitly enabled {@code auto-check.interactive}, this contains only
+     * {@link site.vackstudio.vanticheat.detection.probe.ProbeTransportMode#PASSIVE} probes,
+     * so an automatic scan can never open client UI and interrupt normal gameplay.
+     */
+    public List<ProbeDefinition> automaticEligibleProbes() {
+        return registry.automaticEligible(interactiveAutomatic);
+    }
+
+    public boolean interactiveAutomatic() {
+        return interactiveAutomatic;
+    }
+
+    /**
+     * Declared passive channels mapped to the probe they identify. This map is the complete,
+     * explicit list of channels VAntiCheat will observe; nothing is inferred or sniffed.
+     */
+    public java.util.Map<String, String> passiveChannels() {
+        java.util.Map<String, String> channels = new java.util.LinkedHashMap<>();
+        for (ProbeDefinition probe : registry.all()) {
+            if (probe.passiveChannelProbe()) channels.put(probe.passiveChannel(), probe.id());
+        }
+        return java.util.Collections.unmodifiableMap(channels);
+    }
+
+    public int passiveProbeCount() { return registry.passiveCount(); }
+
+    /** Whether a detection supported only by passive identity evidence may be enforced. */
+    public boolean passiveEnforce() {
+        return passiveEnforce;
     }
 
     /**
@@ -363,10 +459,18 @@ public record ClientDetectionConfig(
     public ProbeRegistry probeRegistry() { return registry; }
 
     public List<String> warnings() {
-        return registry.all().stream()
+        List<String> warnings = new java.util.ArrayList<>(registry.all().stream()
                 .filter(probe -> !probe.manual() && !probe.automatic())
                 .map(probe -> "client-detection.probes." + probe.id()
                         + " has manual=false and automatic=false; it will never run")
-                .toList();
+                .toList());
+        long interactiveAutomaticCount = registry.automatic().stream()
+                .filter(probe -> probe.transport().opensClientUi()).count();
+        if (interactiveAutomaticCount > 0 && !interactiveAutomatic) {
+            warnings.add(interactiveAutomaticCount + " probe(s) are configured automatic:true but declare "
+                    + "INTERACTIVE transport; they are excluded from automatic scans because "
+                    + "client-detection.auto-check.interactive is false. Run them with /vac check <player>.");
+        }
+        return warnings;
     }
 }

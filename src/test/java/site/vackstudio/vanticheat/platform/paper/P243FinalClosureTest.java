@@ -16,6 +16,7 @@ import site.vackstudio.vanticheat.detection.probe.ProbeHandle;
 import site.vackstudio.vanticheat.detection.probe.ProbeMode;
 import site.vackstudio.vanticheat.detection.probe.ProbeRequest;
 import site.vackstudio.vanticheat.detection.probe.ProbeResponse;
+import site.vackstudio.vanticheat.detection.probe.ProbeRegistry;
 import site.vackstudio.vanticheat.detection.probe.ProbeVerificationStatus;
 import site.vackstudio.vanticheat.enforcement.EnforcementAction;
 import site.vackstudio.vanticheat.enforcement.EnforcementDecision;
@@ -366,11 +367,14 @@ class P243FinalClosureTest {
         private final ClientPlatformService platforms;
 
         private ListenerFixture(int maxConcurrent, boolean doubleCheck) {
+            // Opt in to INTERACTIVE automatic probes: this fixture asserts automatic-scan
+            // lifecycle closure, so the automatic path must actually admit a probe. The
+            // shipped default keeps the opt-in off so joins never open client UI.
             ClientDetectionConfig config = new ClientDetectionConfig(true, doubleCheck, 20, 0,
-                    List.of(new ProbeDefinition("probe", "Probe", "key.probe", ProbeMode.TRANSLATE,
-                            "fallback.probe", true, true, true, ProbeVerificationStatus.UNVERIFIED,
-                            "test", "", "", "known response")),
-                    true, 0, false, List.of(), maxConcurrent);
+                    ProbeRegistry.of(List.of(new ProbeDefinition("probe", "Probe", "key.probe",
+                            ProbeMode.TRANSLATE, "fallback.probe", true, true, true,
+                            ProbeVerificationStatus.UNVERIFIED, "test", "", "", "known response"))),
+                    true, 0, false, maxConcurrent, 20, 2, true);
             module = new CheckHacksClientDetectionModule(config, transport);
             module.initialize(new DetectionModuleContext(new PlatformContext(Platform.PAPER, scheduler),
                     FoundationConfig.defaults(), Logger.getLogger("p243-listener")));

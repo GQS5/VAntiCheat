@@ -15,6 +15,7 @@ import site.vackstudio.vanticheat.detection.probe.ProbeHandle;
 import site.vackstudio.vanticheat.detection.probe.ProbeMode;
 import site.vackstudio.vanticheat.detection.probe.ProbeRequest;
 import site.vackstudio.vanticheat.detection.probe.ProbeResponse;
+import site.vackstudio.vanticheat.detection.probe.ProbeRegistry;
 import site.vackstudio.vanticheat.detection.probe.ProbeVerificationStatus;
 import site.vackstudio.vanticheat.enforcement.EnforcementAction;
 import site.vackstudio.vanticheat.enforcement.EnforcementDecision;
@@ -500,7 +501,7 @@ class AutomaticClientDetectionListenerTest {
         fixture.listener.onJoinPlayer(pending);
         assertEquals(1, fixture.listener.activeChecks());
         ClientDetectionConfig disabled = new ClientDetectionConfig(true, false, 20, 0,
-                List.of(replacement), false, 0, false, List.of(), 2);
+                ProbeRegistry.of(List.of(replacement)), false, 0, false, 2, 20, 2, true);
         fixture.module.replaceConfiguration(disabled);
         fixture.listener.reloadConfiguration(disabled);
         fixture.scheduler.runDelayed();
@@ -598,9 +599,16 @@ class AutomaticClientDetectionListenerTest {
                 });
     }
 
+    /**
+     * These tests exercise the automatic-scan lifecycle (tickets, capacity, exactly-once
+     * enforcement, disconnect and shutdown cleanup), so they opt in to INTERACTIVE
+     * automatic probes explicitly. The shipped default leaves it false, which is what
+     * keeps an automatic scan from opening a sign editor on the player's screen.
+     * The default-gate policy is covered by AutomaticScanPolicyTest.
+     */
     private static ClientDetectionConfig config(List<ProbeDefinition> probes, boolean doubleCheck, int max) {
-        return new ClientDetectionConfig(true, doubleCheck, 20, 0, probes,
-                true, 0, false, List.of(), max);
+        return new ClientDetectionConfig(true, doubleCheck, 20, 0, ProbeRegistry.of(probes),
+                true, 0, false, max, 20, 2, true);
     }
 
     private static ProbeDefinition probe() {
@@ -642,8 +650,8 @@ class AutomaticClientDetectionListenerTest {
             transport = new FakeTransport();
             ClientDetectionConfig config = config(List.of(probe()), doubleCheck, maxConcurrent);
             if (!autoEnabled) {
-                config = new ClientDetectionConfig(true, doubleCheck, 20, 0, List.of(probe()),
-                        false, 0, false, List.of(), maxConcurrent);
+                config = new ClientDetectionConfig(true, doubleCheck, 20, 0,
+                        ProbeRegistry.of(List.of(probe())), false, 0, false, maxConcurrent, 20, 2, true);
             }
             module = new CheckHacksClientDetectionModule(config, transport);
             module.initialize(new DetectionModuleContext(new PlatformContext(Platform.PAPER, scheduler),
